@@ -137,7 +137,7 @@ class PhenotypeLibraryClient:
         self.config = config
         self._client: Optional[httpx.AsyncClient] = None
 
-    async def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client."""
         if self._client is None:
             auth = None
@@ -152,13 +152,13 @@ class PhenotypeLibraryClient:
             )
         return self._client
 
-    async def close(self):
+    def close(self):
         """Close the HTTP client."""
         if self._client:
             await self._client.aclose()
             self._client = None
 
-    async def _get(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
+    def _get(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
         """Make a GET request to the API."""
         client = await self._get_client()
         response = await client.get(path, params=params)
@@ -166,7 +166,7 @@ class PhenotypeLibraryClient:
         return response.json()
 
     # Collections
-    async def get_collections(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
+    def get_collections(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
         """Get all collections."""
         params = {}
         if search:
@@ -176,12 +176,12 @@ class PhenotypeLibraryClient:
         data = await self._get("/collections/", params)
         return PaginatedResponse(**data)
 
-    async def get_collection_detail(self, collection_id: int) -> dict[str, Any]:
+    def get_collection_detail(self, collection_id: int) -> dict[str, Any]:
         """Get detail of a specific collection."""
         return await self._get(f"/collections/{collection_id}/detail/")
 
     # Tags
-    async def get_tags(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
+    def get_tags(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
         """Get all tags."""
         params = {}
         if search:
@@ -191,12 +191,12 @@ class PhenotypeLibraryClient:
         data = await self._get("/tags/", params)
         return PaginatedResponse(**data)
 
-    async def get_tag_detail(self, tag_id: int) -> dict[str, Any]:
+    def get_tag_detail(self, tag_id: int) -> dict[str, Any]:
         """Get detail of a specific tag."""
         return await self._get(f"/tags/{tag_id}/detail/")
 
     # Data Sources
-    async def get_data_sources(
+    def get_data_sources(
         self,
         search: Optional[str] = None,
         id: Optional[str] = None,
@@ -225,16 +225,16 @@ class PhenotypeLibraryClient:
         data = await self._get("/data-sources/", params)
         return PaginatedResponse(**data)
 
-    async def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
+    def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
         """Get detail of a specific data source."""
         return await self._get(f"/data-sources/{datasource_id}/detail/")
 
-    async def get_data_source_export(self, datasource_id: str) -> dict[str, Any]:
+    def get_data_source_export(self, datasource_id: str) -> dict[str, Any]:
         """Export a specific data source."""
         return await self._get(f"/data-sources/{datasource_id}/export/")
 
     # Concepts
-    async def get_concepts(
+    def get_concepts(
         self,
         search: Optional[str] = None,
         page: int = 1,
@@ -271,36 +271,36 @@ class PhenotypeLibraryClient:
         data = await self._get("/concepts/", params)
         return PaginatedResponse(**data)
 
-    async def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
+    def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
         """Get detail of a specific concept."""
         return await self._get(f"/concepts/C{concept_id}/detail/")
 
-    async def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
+    def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
         """Export codes for a specific concept."""
         return await self._get(f"/concepts/C{concept_id}/export/codes/")
 
-    async def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
+    def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
         """Export component data for a specific concept."""
         return await self._get(f"/concepts/C{concept_id}/export/component-data/")
 
-    async def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
+    def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
         """Get version history of a specific concept."""
         return await self._get(f"/concepts/C{concept_id}/get-versions/")
 
-    async def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
+    def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific concept version."""
         return await self._get(f"/concepts/C{concept_id}/version/{version_id}/detail/")
 
-    async def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
+    def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export codes for a specific concept version."""
         return await self._get(f"/concepts/C{concept_id}/version/{version_id}/export/codes/")
 
-    async def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
+    def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export component data for a specific concept version."""
         return await self._get(f"/concepts/C{concept_id}/version/{version_id}/export/component-data/")
 
     # Phenotypes
-    async def get_phenotypes(
+    def get_phenotypes(
         self,
         search: Optional[str] = None,
         template_id: Optional[int] = None,
@@ -331,32 +331,32 @@ class PhenotypeLibraryClient:
         data = await self._get("/phenotypes/", params)
         return PaginatedResponse(**data)
 
-    async def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
+    def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype."""
         return await self._get(f"/phenotypes/{phenotype_id}/detail/")
 
-    async def get_phenotype_export(self, phenotype_id: str, field: str) -> dict[str, Any]:
+    def get_phenotype_export(self, phenotype_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype."""
         return await self._get(f"/phenotypes/{phenotype_id}/export/{field}/")
 
-    async def get_phenotype_versions(self, phenotype_id: str) -> dict[str, Any]:
+    def get_phenotype_versions(self, phenotype_id: str) -> dict[str, Any]:
         """Get version history of a specific phenotype."""
         return await self._get(f"/phenotypes/{phenotype_id}/get-versions/")
 
-    async def get_phenotype_version_detail(self, phenotype_id: str, version_id: str) -> dict[str, Any]:
+    def get_phenotype_version_detail(self, phenotype_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype version."""
         return await self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/detail/")
 
-    async def get_phenotype_version_export(self, phenotype_id: str, version_id: str, field: str) -> dict[str, Any]:
+    def get_phenotype_version_export(self, phenotype_id: str, version_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype version."""
         return await self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/export/{field}/")
 
     # Ontology
-    async def get_ontology_groups(self) -> dict[str, Any]:
+    def get_ontology_groups(self) -> dict[str, Any]:
         """Get all ontology groups and their root nodes."""
         return await self._get("/ontology/")
 
-    async def get_ontology_nodes(
+    def get_ontology_nodes(
         self,
         search: Optional[str] = None,
         codes: Optional[str] = None,
@@ -381,20 +381,20 @@ class PhenotypeLibraryClient:
         data = await self._get("/ontology/node/", params)
         return PaginatedResponse(**data)
 
-    async def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
+    def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
         """Get an ontology node by ID."""
         return await self._get(f"/ontology/node/{node_id}/")
 
-    async def get_ontology_node_by_term(self, term: str) -> dict[str, Any]:
+    def get_ontology_node_by_term(self, term: str) -> dict[str, Any]:
         """Get an ontology node by term/reference_id."""
         return await self._get(f"/ontology/node/{term}/")
 
-    async def get_ontology_type(self, ontology_id: str) -> dict[str, Any]:
+    def get_ontology_type(self, ontology_id: str) -> dict[str, Any]:
         """Get ontology group type detail."""
         return await self._get(f"/ontology/type/{ontology_id}/")
 
     # Templates
-    async def get_templates(
+    def get_templates(
         self,
         search: Optional[str] = None,
         id: Optional[str] = None,
@@ -411,15 +411,15 @@ class PhenotypeLibraryClient:
         data = await self._get("/templates/", params)
         return PaginatedResponse(**data)
 
-    async def get_template_detail(self, template_id: int) -> dict[str, Any]:
+    def get_template_detail(self, template_id: int) -> dict[str, Any]:
         """Get detail of a specific template."""
         return await self._get(f"/templates/{template_id}/detail/")
 
-    async def get_template_versions(self, template_id: int) -> dict[str, Any]:
+    def get_template_versions(self, template_id: int) -> dict[str, Any]:
         """Get version history of a specific template."""
         return await self._get(f"/templates/{template_id}/get-versions/")
 
-    async def get_template_version_detail(self, template_id: int, version_id: str) -> dict[str, Any]:
+    def get_template_version_detail(self, template_id: int, version_id: str) -> dict[str, Any]:
         """Get detail of a specific template version."""
         return await self._get(f"/templates/{template_id}/version/{version_id}/detail/")
 
@@ -432,7 +432,7 @@ client = PhenotypeLibraryClient(config)
 
 
 @mcp.tool()
-async def search_phenotypes(
+def search_phenotypes(
     search: Optional[str] = None,
     template_id: Optional[int] = None,
     tags: Optional[str] = None,
@@ -466,7 +466,7 @@ async def search_phenotypes(
 
 
 @mcp.tool()
-async def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
+def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
     """
     Get detailed information about a specific phenotype.
     
@@ -477,7 +477,7 @@ async def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
+def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
     """
     Get the codelist (clinical codes) for a phenotype.
     
@@ -491,7 +491,7 @@ async def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = 
 
 
 @mcp.tool()
-async def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
+def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
     """
     Get version history for a phenotype.
     
@@ -502,7 +502,7 @@ async def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def search_concepts(
+def search_concepts(
     search: Optional[str] = None,
     tags: Optional[str] = None,
     collections: Optional[str] = None,
@@ -536,7 +536,7 @@ async def search_concepts(
 
 
 @mcp.tool()
-async def get_concept_detail(concept_id: str) -> dict[str, Any]:
+def get_concept_detail(concept_id: str) -> dict[str, Any]:
     """
     Get detailed information about a specific concept.
     
@@ -547,7 +547,7 @@ async def get_concept_detail(concept_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_concept_codelist(concept_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
+def get_concept_codelist(concept_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
     """
     Get the codelist (clinical codes) for a concept.
     
@@ -561,7 +561,7 @@ async def get_concept_codelist(concept_id: str, version_id: Optional[str] = None
 
 
 @mcp.tool()
-async def get_concept_versions(concept_id: str) -> dict[str, Any]:
+def get_concept_versions(concept_id: str) -> dict[str, Any]:
     """
     Get version history for a concept.
     
@@ -572,7 +572,7 @@ async def get_concept_versions(concept_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def search_ontology(
+def search_ontology(
     search: Optional[str] = None,
     codes: Optional[str] = None,
     exact_codes: bool = False,
@@ -606,7 +606,7 @@ async def search_ontology(
 
 
 @mcp.tool()
-async def get_ontology_node(term: str) -> dict[str, Any]:
+def get_ontology_node(term: str) -> dict[str, Any]:
     """
     Get an ontology node by term/reference_id.
     
@@ -617,13 +617,13 @@ async def get_ontology_node(term: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_ontology_groups() -> dict[str, Any]:
+def get_ontology_groups() -> dict[str, Any]:
     """Get all ontology groups and their root nodes."""
     return await client.get_ontology_groups()
 
 
 @mcp.tool()
-async def get_ontology_type(ontology_id: str) -> dict[str, Any]:
+def get_ontology_type(ontology_id: str) -> dict[str, Any]:
     """
     Get ontology group type detail.
     
@@ -634,7 +634,7 @@ async def get_ontology_type(ontology_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_collections(search: Optional[str] = None) -> dict[str, Any]:
+def get_collections(search: Optional[str] = None) -> dict[str, Any]:
     """
     Get all collections.
     
@@ -646,7 +646,7 @@ async def get_collections(search: Optional[str] = None) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_collection_detail(collection_id: int) -> dict[str, Any]:
+def get_collection_detail(collection_id: int) -> dict[str, Any]:
     """
     Get detail of a specific collection.
     
@@ -657,7 +657,7 @@ async def get_collection_detail(collection_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_tags(search: Optional[str] = None) -> dict[str, Any]:
+def get_tags(search: Optional[str] = None) -> dict[str, Any]:
     """
     Get all tags.
     
@@ -669,7 +669,7 @@ async def get_tags(search: Optional[str] = None) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_tag_detail(tag_id: int) -> dict[str, Any]:
+def get_tag_detail(tag_id: int) -> dict[str, Any]:
     """
     Get detail of a specific tag.
     
@@ -680,7 +680,7 @@ async def get_tag_detail(tag_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_data_sources(
+def get_data_sources(
     search: Optional[str] = None,
     name: Optional[str] = None,
 ) -> dict[str, Any]:
@@ -696,7 +696,7 @@ async def get_data_sources(
 
 
 @mcp.tool()
-async def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
+def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
     """
     Get detail of a specific data source.
     
@@ -707,7 +707,7 @@ async def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_templates(search: Optional[str] = None) -> dict[str, Any]:
+def get_templates(search: Optional[str] = None) -> dict[str, Any]:
     """
     Get all templates.
     
@@ -719,7 +719,7 @@ async def get_templates(search: Optional[str] = None) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_template_detail(template_id: int) -> dict[str, Any]:
+def get_template_detail(template_id: int) -> dict[str, Any]:
     """
     Get detail of a specific template.
     
@@ -730,7 +730,7 @@ async def get_template_detail(template_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def get_template_versions(template_id: int) -> dict[str, Any]:
+def get_template_versions(template_id: int) -> dict[str, Any]:
     """
     Get version history for a template.
     
@@ -742,21 +742,21 @@ async def get_template_versions(template_id: int) -> dict[str, Any]:
 
 # Resource endpoints
 @mcp.resource("phenotype://{phenotype_id}")
-async def phenotype_resource(phenotype_id: str) -> str:
+def phenotype_resource(phenotype_id: str) -> str:
     """Get a phenotype as a resource."""
     detail = await client.get_phenotype_detail(phenotype_id)
     return str(detail)
 
 
 @mcp.resource("concept://{concept_id}")
-async def concept_resource(concept_id: str) -> str:
+def concept_resource(concept_id: str) -> str:
     """Get a concept as a resource."""
     detail = await client.get_concept_detail(concept_id)
     return str(detail)
 
 
 @mcp.resource("ontology://{term}")
-async def ontology_resource(term: str) -> str:
+def ontology_resource(term: str) -> str:
     """Get an ontology node as a resource."""
     detail = await client.get_ontology_node_by_term(term)
     return str(detail)
@@ -814,7 +814,7 @@ app.add_middleware(
 
 # 4. Platform health check endpoint
 @app.get("/health")
-async def health_check():
+def health_check():
     return {
         "status": "healthy",
         "service": "phenotypelibrary-mcp",
