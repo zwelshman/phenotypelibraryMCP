@@ -492,8 +492,11 @@ def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = None) 
         version_id: Optional version ID to get a specific version
     """
     if version_id:
-        return client.get_phenotype_version_export(phenotype_id, version_id, "codes")
-    return client.get_phenotype_export(phenotype_id, "codes")
+        codes = client.get_phenotype_version_export(phenotype_id, version_id, "codes")
+    else:
+        codes = client.get_phenotype_export(phenotype_id, "codes")
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"codes": codes} if isinstance(codes, list) else codes
 
 
 @mcp.tool()
@@ -562,8 +565,11 @@ def get_concept_codelist(concept_id: str, version_id: Optional[str] = None) -> d
         version_id: Optional version ID to get a specific version
     """
     if version_id:
-        return client.get_concept_version_codelist(concept_id, version_id)
-    return client.get_concept_codelist(concept_id)
+        codes = client.get_concept_version_codelist(concept_id, version_id)
+    else:
+        codes = client.get_concept_codelist(concept_id)
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"codes": codes} if isinstance(codes, list) else codes
 
 
 @mcp.tool()
