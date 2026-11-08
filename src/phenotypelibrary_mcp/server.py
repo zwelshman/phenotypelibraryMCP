@@ -1,6 +1,7 @@
 """Main MCP Server for PhenotypeLibrary/Concept Library API."""
 
 import os
+import argparse
 from typing import Any, Optional
 from dataclasses import dataclass
 
@@ -8,6 +9,9 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +29,22 @@ class Config:
 
 # Global config instance
 config = Config()
+
+
+# Health check endpoint for Render
+async def health_check(request):
+    """Health check endpoint for Render."""
+    return JSONResponse({"status": "healthy", "service": "phenotypelibrary-mcp"})
+
+
+def create_app():
+    """Create the Starlette app with MCP and health check."""
+    app = Starlette(
+        routes=[
+            Route("/health", health_check, methods=["GET"]),
+        ]
+    )
+    return app
 
 
 # Pydantic models for API responses
@@ -771,5 +791,46 @@ def ontology_search_prompt(term: str) -> str:
     return f"Search the ontology for terms related to {term}. Use the search_ontology tool with search='{term}'."
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="PhenotypeLibrary MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http", "sse"],
+        default="stdio",
+        help="Transport protocol to use (default: stdio)"
+    )
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (default: 8000)"
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    mcp.run()
+    args = parse_args()
+    
+    if args.transport == "stdio":
+        mcp.run()
+    else:
+        # For HTTP transports, we need to run with uvicorn
+        import uvicorn
+        from mcp.server.streamable_http import create_streamable_http_app
+        from mcp.server.sse import create_sse_app
+        
+        if args.transport == "streamable-http":
+            app = create_streamable_http_app(mcp)
+        elif args.transport == "sse":
+            app = create_sse_app(mcp)
+        
+        # Add health check route
+        app.router.routes.insert(0, Route("/health", health_check, methods=["GET"]))
+        
+        uvicorn.run(app, host=args.host, port=args.port)

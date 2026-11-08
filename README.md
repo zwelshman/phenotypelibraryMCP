@@ -46,6 +46,40 @@ PHENOTYPELIBRARY_PASSWORD=your_password
 - **ADP**: `https://conceptlibrary.saildatabank.com/ADP/api/v1/`
 - **Gateway**: `https://conceptlibrary.serp.ac.uk/api/v1/`
 
+## Deployment
+
+### Render (Web Service)
+
+1. Connect your GitHub repository to Render
+2. Create a new **Web Service**
+3. Use the `render.yaml` configuration file (or manually configure):
+   - **Build Command**: `pip install -e .`
+   - **Start Command**: `python -m phenotypelibrary_mcp.server --transport streamable-http --host 0.0.0.0 --port $PORT`
+   - **Health Check Path**: `/health`
+4. Add environment variables:
+   - `PHENOTYPELIBRARY_BASE_URL` (optional, defaults to SAIL)
+   - `PHENOTYPELIBRARY_TIMEOUT` (optional, defaults to 30.0)
+   - `PHENOTYPELIBRARY_USERNAME` (optional, for private data)
+   - `PHENOTYPELIBRARY_PASSWORD` (optional, for private data)
+
+### Docker
+
+```bash
+# Build the image
+docker build -t phenotypelibrary-mcp .
+
+# Run the container
+docker run -p 8000:8000 \
+  -e PHENOTYPELIBRARY_BASE_URL=https://conceptlibrary.saildatabank.com/api/v1/ \
+  phenotypelibrary-mcp
+```
+
+### Docker Compose
+
+```bash
+docker-compose up -d
+```
+
 ## Usage
 
 ### Running the Server

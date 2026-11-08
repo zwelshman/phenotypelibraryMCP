@@ -1,0 +1,18 @@
+# Render configuration for PhenotypeLibrary MCP Server
+services:
+  - type: web
+    name: phenotypelibrary-mcp
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: python -m phenotypelibrary_mcp.server --transport streamable-http --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: PHENOTYPELIBRARY_BASE_URL
+        value: https://conceptlibrary.saildatabank.com/api/v1/
+      - key: PHENOTYPELIBRARY_TIMEOUT
+        value: "30.0"
+    healthCheckPath: /health
+    autoDeploy: true

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  phenotypelibrary-mcp:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PHENOTYPELIBRARY_BASE_URL=https://conceptlibrary.saildatabank.com/api/v1/
+      - PHENOTYPELIBRARY_TIMEOUT=30.0
+      # Uncomment and set if you need authentication
+      # - PHENOTYPELIBRARY_USERNAME=your_username
+      # - PHENOTYPELIBRARY_PASSWORD=your_password
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
