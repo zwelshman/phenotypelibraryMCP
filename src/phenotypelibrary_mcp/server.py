@@ -1,17 +1,23 @@
 """Main MCP Server for PhenotypeLibrary/Concept Library API."""
 
 import os
+import sys
 import argparse
 from typing import Any, Optional
 from dataclasses import dataclass
 
 import httpx
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from starlette.applications import Starlette
-from starlette.responses import JSONResponse
-from starlette.routing import Route
+
+# Force line buffering for cloud logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 # Load environment variables
 load_dotenv()
@@ -29,22 +35,6 @@ class Config:
 
 # Global config instance
 config = Config()
-
-
-# Health check endpoint for Render
-async def health_check(request):
-    """Health check endpoint for Render."""
-    return JSONResponse({"status": "healthy", "service": "phenotypelibrary-mcp"})
-
-
-def create_app():
-    """Create the Starlette app with MCP and health check."""
-    app = Starlette(
-        routes=[
-            Route("/health", health_check, methods=["GET"]),
-        ]
-    )
-    return app
 
 
 # Pydantic models for API responses
@@ -791,12 +781,56 @@ def ontology_search_prompt(term: str) -> str:
     return f"Search the ontology for terms related to {term}. Use the search_ontology tool with search='{term}'."
 
 
+# 1. Initialize FastMCP with transport security configured for cloud hosting
+mcp = FastMCP(
+    "PhenotypeLibrary",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+        allowed_hosts=["*"]
+    )
+)
+
+# Initialize the client
+client = PhenotypeLibraryClient(config)
+
+
+# ... (all the @mcp.tool(), @mcp.resource(), @mcp.prompt() definitions remain the same)
+
+
+# 2. Create standard FastAPI application
+app = FastAPI(
+    title="PhenotypeLibrary MCP Server",
+    description="Model Context Protocol (MCP) server for the Concept Library API"
+)
+
+# 3. Attach production middleware (Proxy headers for SSL/Host resolution & CORS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 4. Platform health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "phenotypelibrary-mcp",
+        "sse_endpoint": "/mcp/sse"
+    }
+
+# 5. Mount the FastMCP SSE application under /mcp namespace
+app.mount("/mcp", mcp.sse_app())
+
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="PhenotypeLibrary MCP Server")
     parser.add_argument(
         "--transport",
-        choices=["stdio", "streamable-http", "sse"],
+        choices=["stdio", "sse"],
         default="stdio",
         help="Transport protocol to use (default: stdio)"
     )
@@ -820,17 +854,5 @@ if __name__ == "__main__":
     if args.transport == "stdio":
         mcp.run()
     else:
-        # For HTTP transports, we need to run with uvicorn
-        import uvicorn
-        from mcp.server.streamable_http import create_streamable_http_app
-        from mcp.server.sse import create_sse_app
-        
-        if args.transport == "streamable-http":
-            app = create_streamable_http_app(mcp)
-        elif args.transport == "sse":
-            app = create_sse_app(mcp)
-        
-        # Add health check route
-        app.router.routes.insert(0, Route("/health", health_check, methods=["GET"]))
-        
-        uvicorn.run(app, host=args.host, port=args.port)
+        # For SSE transport, run with uvicorn
+        uvicorn.run(app, host=args.host, port=args.port, timeout_keep_alive=300)

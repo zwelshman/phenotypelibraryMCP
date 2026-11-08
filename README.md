@@ -54,13 +54,19 @@ PHENOTYPELIBRARY_PASSWORD=your_password
 2. Create a new **Web Service**
 3. Use the `render.yaml` configuration file (or manually configure):
    - **Build Command**: `pip install -e .`
-   - **Start Command**: `python -m phenotypelibrary_mcp.server --transport streamable-http --host 0.0.0.0 --port $PORT`
+   - **Start Command**: `python -m phenotypelibrary_mcp.server --transport sse --host 0.0.0.0 --port $PORT`
    - **Health Check Path**: `/health`
 4. Add environment variables:
    - `PHENOTYPELIBRARY_BASE_URL` (optional, defaults to SAIL)
    - `PHENOTYPELIBRARY_TIMEOUT` (optional, defaults to 30.0)
    - `PHENOTYPELIBRARY_USERNAME` (optional, for private data)
    - `PHENOTYPELIBRARY_PASSWORD` (optional, for private data)
+
+### MCP Endpoint
+
+Once deployed, the MCP server will be available at:
+- **SSE Endpoint**: `https://your-app.onrender.com/mcp/sse`
+- **Health Check**: `https://your-app.onrender.com/health`
 
 ### Docker
 
