@@ -135,16 +135,16 @@ class PhenotypeLibraryClient:
 
     def __init__(self, config: Config):
         self.config = config
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: Optional[httpx.Client] = None
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx.Client:
         """Get or create the HTTP client."""
         if self._client is None:
             auth = None
             if self.config.username and self.config.password:
                 auth = httpx.BasicAuth(self.config.username, self.config.password)
             
-            self._client = httpx.AsyncClient(
+            self._client = httpx.Client(
                 base_url=self.config.base_url,
                 timeout=self.config.timeout,
                 auth=auth,
@@ -155,13 +155,13 @@ class PhenotypeLibraryClient:
     def close(self):
         """Close the HTTP client."""
         if self._client:
-            await self._client.aclose()
+            self._client.close()
             self._client = None
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
         """Make a GET request to the API."""
-        client = await self._get_client()
-        response = await client.get(path, params=params)
+        client = self._get_client()
+        response = client.get(path, params=params)
         response.raise_for_status()
         return response.json()
 
@@ -173,12 +173,12 @@ class PhenotypeLibraryClient:
             params["search"] = search
         if id:
             params["id"] = id
-        data = await self._get("/collections/", params)
+        data = self._get("/collections/", params)
         return PaginatedResponse(**data)
 
     def get_collection_detail(self, collection_id: int) -> dict[str, Any]:
         """Get detail of a specific collection."""
-        return await self._get(f"/collections/{collection_id}/detail/")
+        return self._get(f"/collections/{collection_id}/detail/")
 
     # Tags
     def get_tags(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
@@ -188,12 +188,12 @@ class PhenotypeLibraryClient:
             params["search"] = search
         if id:
             params["id"] = id
-        data = await self._get("/tags/", params)
+        data = self._get("/tags/", params)
         return PaginatedResponse(**data)
 
     def get_tag_detail(self, tag_id: int) -> dict[str, Any]:
         """Get detail of a specific tag."""
-        return await self._get(f"/tags/{tag_id}/detail/")
+        return self._get(f"/tags/{tag_id}/detail/")
 
     # Data Sources
     def get_data_sources(
@@ -222,16 +222,16 @@ class PhenotypeLibraryClient:
             params["url"] = url
         if source:
             params["source"] = source
-        data = await self._get("/data-sources/", params)
+        data = self._get("/data-sources/", params)
         return PaginatedResponse(**data)
 
     def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
         """Get detail of a specific data source."""
-        return await self._get(f"/data-sources/{datasource_id}/detail/")
+        return self._get(f"/data-sources/{datasource_id}/detail/")
 
     def get_data_source_export(self, datasource_id: str) -> dict[str, Any]:
         """Export a specific data source."""
-        return await self._get(f"/data-sources/{datasource_id}/export/")
+        return self._get(f"/data-sources/{datasource_id}/export/")
 
     # Concepts
     def get_concepts(
@@ -268,36 +268,36 @@ class PhenotypeLibraryClient:
             params["owner"] = owner
         if organisation:
             params["organisation"] = organisation
-        data = await self._get("/concepts/", params)
+        data = self._get("/concepts/", params)
         return PaginatedResponse(**data)
 
     def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
         """Get detail of a specific concept."""
-        return await self._get(f"/concepts/C{concept_id}/detail/")
+        return self._get(f"/concepts/C{concept_id}/detail/")
 
     def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
         """Export codes for a specific concept."""
-        return await self._get(f"/concepts/C{concept_id}/export/codes/")
+        return self._get(f"/concepts/C{concept_id}/export/codes/")
 
     def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
         """Export component data for a specific concept."""
-        return await self._get(f"/concepts/C{concept_id}/export/component-data/")
+        return self._get(f"/concepts/C{concept_id}/export/component-data/")
 
     def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
         """Get version history of a specific concept."""
-        return await self._get(f"/concepts/C{concept_id}/get-versions/")
+        return self._get(f"/concepts/C{concept_id}/get-versions/")
 
     def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific concept version."""
-        return await self._get(f"/concepts/C{concept_id}/version/{version_id}/detail/")
+        return self._get(f"/concepts/C{concept_id}/version/{version_id}/detail/")
 
     def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export codes for a specific concept version."""
-        return await self._get(f"/concepts/C{concept_id}/version/{version_id}/export/codes/")
+        return self._get(f"/concepts/C{concept_id}/version/{version_id}/export/codes/")
 
     def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export component data for a specific concept version."""
-        return await self._get(f"/concepts/C{concept_id}/version/{version_id}/export/component-data/")
+        return self._get(f"/concepts/C{concept_id}/version/{version_id}/export/component-data/")
 
     # Phenotypes
     def get_phenotypes(
@@ -328,33 +328,33 @@ class PhenotypeLibraryClient:
             params["collections"] = collections
         if created:
             params["created"] = created
-        data = await self._get("/phenotypes/", params)
+        data = self._get("/phenotypes/", params)
         return PaginatedResponse(**data)
 
     def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype."""
-        return await self._get(f"/phenotypes/{phenotype_id}/detail/")
+        return self._get(f"/phenotypes/{phenotype_id}/detail/")
 
     def get_phenotype_export(self, phenotype_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype."""
-        return await self._get(f"/phenotypes/{phenotype_id}/export/{field}/")
+        return self._get(f"/phenotypes/{phenotype_id}/export/{field}/")
 
     def get_phenotype_versions(self, phenotype_id: str) -> dict[str, Any]:
         """Get version history of a specific phenotype."""
-        return await self._get(f"/phenotypes/{phenotype_id}/get-versions/")
+        return self._get(f"/phenotypes/{phenotype_id}/get-versions/")
 
     def get_phenotype_version_detail(self, phenotype_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype version."""
-        return await self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/detail/")
+        return self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/detail/")
 
     def get_phenotype_version_export(self, phenotype_id: str, version_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype version."""
-        return await self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/export/{field}/")
+        return self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/export/{field}/")
 
     # Ontology
     def get_ontology_groups(self) -> dict[str, Any]:
         """Get all ontology groups and their root nodes."""
-        return await self._get("/ontology/")
+        return self._get("/ontology/")
 
     def get_ontology_nodes(
         self,
@@ -378,20 +378,20 @@ class PhenotypeLibraryClient:
             params["type_ids"] = type_ids
         if reference_ids:
             params["reference_ids"] = reference_ids
-        data = await self._get("/ontology/node/", params)
+        data = self._get("/ontology/node/", params)
         return PaginatedResponse(**data)
 
     def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
         """Get an ontology node by ID."""
-        return await self._get(f"/ontology/node/{node_id}/")
+        return self._get(f"/ontology/node/{node_id}/")
 
     def get_ontology_node_by_term(self, term: str) -> dict[str, Any]:
         """Get an ontology node by term/reference_id."""
-        return await self._get(f"/ontology/node/{term}/")
+        return self._get(f"/ontology/node/{term}/")
 
     def get_ontology_type(self, ontology_id: str) -> dict[str, Any]:
         """Get ontology group type detail."""
-        return await self._get(f"/ontology/type/{ontology_id}/")
+        return self._get(f"/ontology/type/{ontology_id}/")
 
     # Templates
     def get_templates(
@@ -408,24 +408,30 @@ class PhenotypeLibraryClient:
             params["id"] = id
         if name:
             params["name"] = name
-        data = await self._get("/templates/", params)
+        data = self._get("/templates/", params)
         return PaginatedResponse(**data)
 
     def get_template_detail(self, template_id: int) -> dict[str, Any]:
         """Get detail of a specific template."""
-        return await self._get(f"/templates/{template_id}/detail/")
+        return self._get(f"/templates/{template_id}/detail/")
 
     def get_template_versions(self, template_id: int) -> dict[str, Any]:
         """Get version history of a specific template."""
-        return await self._get(f"/templates/{template_id}/get-versions/")
+        return self._get(f"/templates/{template_id}/get-versions/")
 
     def get_template_version_detail(self, template_id: int, version_id: str) -> dict[str, Any]:
         """Get detail of a specific template version."""
-        return await self._get(f"/templates/{template_id}/version/{version_id}/detail/")
+        return self._get(f"/templates/{template_id}/version/{version_id}/detail/")
 
 
-# Create the MCP server
-mcp = FastMCP("PhenotypeLibrary")
+# 1. Initialize FastMCP with transport security configured for cloud hosting
+mcp = FastMCP(
+    "PhenotypeLibrary",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+        allowed_hosts=["*"]
+    )
+)
 
 # Initialize the client
 client = PhenotypeLibraryClient(config)
@@ -453,7 +459,7 @@ def search_phenotypes(
         page_size: Page size enum (1=20, 2=50, 3=100)
         no_pagination: Disable pagination to get all results
     """
-    result = await client.get_phenotypes(
+    result = client.get_phenotypes(
         search=search,
         template_id=template_id,
         tags=tags,
@@ -473,7 +479,7 @@ def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
     Args:
         phenotype_id: The phenotype ID (e.g., "PH1")
     """
-    return await client.get_phenotype_detail(phenotype_id)
+    return client.get_phenotype_detail(phenotype_id)
 
 
 @mcp.tool()
@@ -486,8 +492,8 @@ def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = None) 
         version_id: Optional version ID to get a specific version
     """
     if version_id:
-        return await client.get_phenotype_version_export(phenotype_id, version_id, "codes")
-    return await client.get_phenotype_export(phenotype_id, "codes")
+        return client.get_phenotype_version_export(phenotype_id, version_id, "codes")
+    return client.get_phenotype_export(phenotype_id, "codes")
 
 
 @mcp.tool()
@@ -498,7 +504,7 @@ def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
     Args:
         phenotype_id: The phenotype ID (e.g., "PH1")
     """
-    return await client.get_phenotype_versions(phenotype_id)
+    return client.get_phenotype_versions(phenotype_id)
 
 
 @mcp.tool()
@@ -523,7 +529,7 @@ def search_concepts(
         page_size: Page size enum (1=20, 2=50, 3=100)
         no_pagination: Disable pagination to get all results
     """
-    result = await client.get_concepts(
+    result = client.get_concepts(
         search=search,
         tags=tags,
         collections=collections,
@@ -543,7 +549,7 @@ def get_concept_detail(concept_id: str) -> dict[str, Any]:
     Args:
         concept_id: The concept ID (e.g., "C714")
     """
-    return await client.get_concept_detail(concept_id)
+    return client.get_concept_detail(concept_id)
 
 
 @mcp.tool()
@@ -556,8 +562,8 @@ def get_concept_codelist(concept_id: str, version_id: Optional[str] = None) -> d
         version_id: Optional version ID to get a specific version
     """
     if version_id:
-        return await client.get_concept_version_codelist(concept_id, version_id)
-    return await client.get_concept_codelist(concept_id)
+        return client.get_concept_version_codelist(concept_id, version_id)
+    return client.get_concept_codelist(concept_id)
 
 
 @mcp.tool()
@@ -568,7 +574,7 @@ def get_concept_versions(concept_id: str) -> dict[str, Any]:
     Args:
         concept_id: The concept ID (e.g., "C714")
     """
-    return await client.get_concept_versions(concept_id)
+    return client.get_concept_versions(concept_id)
 
 
 @mcp.tool()
@@ -593,7 +599,7 @@ def search_ontology(
         page: Page number (default: 1)
         page_size: Page size enum (1=20, 2=50, 3=100)
     """
-    result = await client.get_ontology_nodes(
+    result = client.get_ontology_nodes(
         search=search,
         codes=codes,
         exact_codes=exact_codes,
@@ -613,13 +619,13 @@ def get_ontology_node(term: str) -> dict[str, Any]:
     Args:
         term: The ontology term (e.g., "MONDO:0004995", "MESH:D002309", "SCTID:394579002")
     """
-    return await client.get_ontology_node_by_term(term)
+    return client.get_ontology_node_by_term(term)
 
 
 @mcp.tool()
 def get_ontology_groups() -> dict[str, Any]:
     """Get all ontology groups and their root nodes."""
-    return await client.get_ontology_groups()
+    return client.get_ontology_groups()
 
 
 @mcp.tool()
@@ -630,7 +636,7 @@ def get_ontology_type(ontology_id: str) -> dict[str, Any]:
     Args:
         ontology_id: The ontology type ID
     """
-    return await client.get_ontology_type(ontology_id)
+    return client.get_ontology_type(ontology_id)
 
 
 @mcp.tool()
@@ -641,7 +647,7 @@ def get_collections(search: Optional[str] = None) -> dict[str, Any]:
     Args:
         search: Full-text search across collection name
     """
-    result = await client.get_collections(search=search)
+    result = client.get_collections(search=search)
     return result.model_dump()
 
 
@@ -653,7 +659,7 @@ def get_collection_detail(collection_id: int) -> dict[str, Any]:
     Args:
         collection_id: The collection ID
     """
-    return await client.get_collection_detail(collection_id)
+    return client.get_collection_detail(collection_id)
 
 
 @mcp.tool()
@@ -664,7 +670,7 @@ def get_tags(search: Optional[str] = None) -> dict[str, Any]:
     Args:
         search: Full-text search across tag name
     """
-    result = await client.get_tags(search=search)
+    result = client.get_tags(search=search)
     return result.model_dump()
 
 
@@ -676,7 +682,7 @@ def get_tag_detail(tag_id: int) -> dict[str, Any]:
     Args:
         tag_id: The tag ID
     """
-    return await client.get_tag_detail(tag_id)
+    return client.get_tag_detail(tag_id)
 
 
 @mcp.tool()
@@ -691,7 +697,7 @@ def get_data_sources(
         search: Full-text search across name and description
         name: Case insensitive direct match of name field
     """
-    result = await client.get_data_sources(search=search, name=name)
+    result = client.get_data_sources(search=search, name=name)
     return result.model_dump()
 
 
@@ -703,7 +709,7 @@ def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
     Args:
         datasource_id: The data source ID or UUID
     """
-    return await client.get_data_source_detail(datasource_id)
+    return client.get_data_source_detail(datasource_id)
 
 
 @mcp.tool()
@@ -714,7 +720,7 @@ def get_templates(search: Optional[str] = None) -> dict[str, Any]:
     Args:
         search: Full-text search across template name and description
     """
-    result = await client.get_templates(search=search)
+    result = client.get_templates(search=search)
     return result.model_dump()
 
 
@@ -726,7 +732,7 @@ def get_template_detail(template_id: int) -> dict[str, Any]:
     Args:
         template_id: The template ID
     """
-    return await client.get_template_detail(template_id)
+    return client.get_template_detail(template_id)
 
 
 @mcp.tool()
@@ -737,28 +743,28 @@ def get_template_versions(template_id: int) -> dict[str, Any]:
     Args:
         template_id: The template ID
     """
-    return await client.get_template_versions(template_id)
+    return client.get_template_versions(template_id)
 
 
 # Resource endpoints
 @mcp.resource("phenotype://{phenotype_id}")
 def phenotype_resource(phenotype_id: str) -> str:
     """Get a phenotype as a resource."""
-    detail = await client.get_phenotype_detail(phenotype_id)
+    detail = client.get_phenotype_detail(phenotype_id)
     return str(detail)
 
 
 @mcp.resource("concept://{concept_id}")
 def concept_resource(concept_id: str) -> str:
     """Get a concept as a resource."""
-    detail = await client.get_concept_detail(concept_id)
+    detail = client.get_concept_detail(concept_id)
     return str(detail)
 
 
 @mcp.resource("ontology://{term}")
 def ontology_resource(term: str) -> str:
     """Get an ontology node as a resource."""
-    detail = await client.get_ontology_node_by_term(term)
+    detail = client.get_ontology_node_by_term(term)
     return str(detail)
 
 
@@ -779,22 +785,6 @@ def concept_search_prompt(condition: str) -> str:
 def ontology_search_prompt(term: str) -> str:
     """Generate a prompt for searching ontology terms."""
     return f"Search the ontology for terms related to {term}. Use the search_ontology tool with search='{term}'."
-
-
-# 1. Initialize FastMCP with transport security configured for cloud hosting
-mcp = FastMCP(
-    "PhenotypeLibrary",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-        allowed_hosts=["*"]
-    )
-)
-
-# Initialize the client
-client = PhenotypeLibraryClient(config)
-
-
-# ... (all the @mcp.tool(), @mcp.resource(), @mcp.prompt() definitions remain the same)
 
 
 # 2. Create standard FastAPI application

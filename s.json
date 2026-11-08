@@ -1,0 +1,40 @@
+{
+  "model": {
+    "completion_params": {},
+    "mode": "chat",
+    "model": "openrouter/free",
+    "model_type": "llm",
+    "provider": "langgenius/openrouter/openrouter",
+    "type": "model-selector"
+  },
+  "tools": [
+    {
+      "enabled": true,
+      "extra": {
+        "description": "A tool for scraping webpages."
+      },
+      "parameters": {
+        "url": null
+      },
+      "provider_name": "webscraper",
+      "provider_show_name": "webscraper",
+      "settings": {
+        "generate_summary": {
+          "type": "constant",
+          "value": "false"
+        },
+        "user_agent": {
+          "type": "mixed",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.1000.0 Safari/537.36"
+        }
+      },
+      "tool_description": "A tool for scraping webpages.",
+      "tool_label": "Web Scraper",
+      "tool_name": "webscraper",
+      "type": "builtin"
+    }
+  ],
+  "instruction": "Scrape and extraction information",
+  "query": "scrape this web page: https://www.hdrs.com/hdrs-funds-43-technical-transformation-projects/ Give me cardiovascular projects",
+  "maximum_iterations": 5
+}
