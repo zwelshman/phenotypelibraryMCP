@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -e .
-    startCommand: python -m phenotypelibrary_mcp.server --transport sse --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn phenotypelibrary_mcp.server:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
