@@ -379,6 +379,15 @@ class PhenotypeLibraryClient:
         if reference_ids:
             params["reference_ids"] = reference_ids
         data = self._get("/ontology/node/", params)
+        # Ontology API returns different format: {page, total_pages, data: [...]}
+        # Convert to PaginatedResponse format
+        if "data" in data:
+            return PaginatedResponse(
+                count=len(data["data"]),
+                next=None,
+                previous=None,
+                results=data["data"]
+            )
         return PaginatedResponse(**data)
 
     def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
