@@ -217,7 +217,7 @@ class PhenotypeLibraryClient:
         if uid:
             params["uid"] = uid
         if datasource_id:
-            params["datasource_id"] = datasource_id
+            params["datasource_id"] = datasource_id.strip()
         if url:
             params["url"] = url
         if source:
@@ -227,11 +227,11 @@ class PhenotypeLibraryClient:
 
     def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
         """Get detail of a specific data source."""
-        return self._get(f"/data-sources/{datasource_id}/detail/")
+        return self._get(f"/data-sources/{datasource_id.strip()}/detail/")
 
     def get_data_source_export(self, datasource_id: str) -> dict[str, Any]:
         """Export a specific data source."""
-        return self._get(f"/data-sources/{datasource_id}/export/")
+        return self._get(f"/data-sources/{datasource_id.strip()}/export/")
 
     # Concepts
     def get_concepts(
@@ -273,31 +273,31 @@ class PhenotypeLibraryClient:
 
     def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
         """Get detail of a specific concept."""
-        return self._get(f"/concepts/C{concept_id}/detail/")
+        return self._get(f"/concepts/C{concept_id.strip()}/detail/")
 
     def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
         """Export codes for a specific concept."""
-        return self._get(f"/concepts/C{concept_id}/export/codes/")
+        return self._get(f"/concepts/C{concept_id.strip()}/export/codes/")
 
     def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
         """Export component data for a specific concept."""
-        return self._get(f"/concepts/C{concept_id}/export/component-data/")
+        return self._get(f"/concepts/C{concept_id.strip()}/export/component-data/")
 
     def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
         """Get version history of a specific concept."""
-        return self._get(f"/concepts/C{concept_id}/get-versions/")
+        return self._get(f"/concepts/C{concept_id.strip()}/get-versions/")
 
     def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific concept version."""
-        return self._get(f"/concepts/C{concept_id}/version/{version_id}/detail/")
+        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/detail/")
 
     def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export codes for a specific concept version."""
-        return self._get(f"/concepts/C{concept_id}/version/{version_id}/export/codes/")
+        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/export/codes/")
 
     def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export component data for a specific concept version."""
-        return self._get(f"/concepts/C{concept_id}/version/{version_id}/export/component-data/")
+        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/export/component-data/")
 
     # Phenotypes
     def get_phenotypes(
@@ -333,23 +333,23 @@ class PhenotypeLibraryClient:
 
     def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id}/detail/")
+        return self._get(f"/phenotypes/{phenotype_id.strip()}/detail/")
 
     def get_phenotype_export(self, phenotype_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id}/export/{field}/")
+        return self._get(f"/phenotypes/{phenotype_id.strip()}/export/{field}/")
 
     def get_phenotype_versions(self, phenotype_id: str) -> dict[str, Any]:
         """Get version history of a specific phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id}/get-versions/")
+        return self._get(f"/phenotypes/{phenotype_id.strip()}/get-versions/")
 
     def get_phenotype_version_detail(self, phenotype_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype version."""
-        return self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/detail/")
+        return self._get(f"/phenotypes/{phenotype_id.strip()}/version/{version_id.strip()}/detail/")
 
     def get_phenotype_version_export(self, phenotype_id: str, version_id: str, field: str) -> dict[str, Any]:
         """Export a specific field of a phenotype version."""
-        return self._get(f"/phenotypes/{phenotype_id}/version/{version_id}/export/{field}/")
+        return self._get(f"/phenotypes/{phenotype_id.strip()}/version/{version_id.strip()}/export/{field}/")
 
     # Ontology
     def get_ontology_groups(self) -> dict[str, Any]:
@@ -383,15 +383,15 @@ class PhenotypeLibraryClient:
 
     def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
         """Get an ontology node by ID."""
-        return self._get(f"/ontology/node/{node_id}/")
+        return self._get(f"/ontology/node/{node_id.strip()}/")
 
     def get_ontology_node_by_term(self, term: str) -> dict[str, Any]:
         """Get an ontology node by term/reference_id."""
-        return self._get(f"/ontology/node/{term}/")
+        return self._get(f"/ontology/node/{term.strip()}/")
 
     def get_ontology_type(self, ontology_id: str) -> dict[str, Any]:
         """Get ontology group type detail."""
-        return self._get(f"/ontology/type/{ontology_id}/")
+        return self._get(f"/ontology/type/{ontology_id.strip()}/")
 
     # Templates
     def get_templates(
@@ -405,7 +405,7 @@ class PhenotypeLibraryClient:
         if search:
             params["search"] = search
         if id:
-            params["id"] = id
+            params["id"] = id.strip()
         if name:
             params["name"] = name
         data = self._get("/templates/", params)
@@ -421,7 +421,7 @@ class PhenotypeLibraryClient:
 
     def get_template_version_detail(self, template_id: int, version_id: str) -> dict[str, Any]:
         """Get detail of a specific template version."""
-        return self._get(f"/templates/{template_id}/version/{version_id}/detail/")
+        return self._get(f"/templates/{template_id}/version/{version_id.strip()}/detail/")
 
 
 # 1. Initialize FastMCP with transport security configured for cloud hosting
@@ -479,7 +479,9 @@ def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
     Args:
         phenotype_id: The phenotype ID (e.g., "PH1")
     """
-    return client.get_phenotype_detail(phenotype_id)
+    detail = client.get_phenotype_detail(phenotype_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -507,7 +509,9 @@ def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
     Args:
         phenotype_id: The phenotype ID (e.g., "PH1")
     """
-    return client.get_phenotype_versions(phenotype_id)
+    versions = client.get_phenotype_versions(phenotype_id)
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"versions": versions} if isinstance(versions, list) else versions
 
 
 @mcp.tool()
@@ -552,7 +556,9 @@ def get_concept_detail(concept_id: str) -> dict[str, Any]:
     Args:
         concept_id: The concept ID (e.g., "C714")
     """
-    return client.get_concept_detail(concept_id)
+    detail = client.get_concept_detail(concept_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -580,7 +586,9 @@ def get_concept_versions(concept_id: str) -> dict[str, Any]:
     Args:
         concept_id: The concept ID (e.g., "C714")
     """
-    return client.get_concept_versions(concept_id)
+    versions = client.get_concept_versions(concept_id)
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"versions": versions} if isinstance(versions, list) else versions
 
 
 @mcp.tool()
@@ -625,13 +633,17 @@ def get_ontology_node(term: str) -> dict[str, Any]:
     Args:
         term: The ontology term (e.g., "MONDO:0004995", "MESH:D002309", "SCTID:394579002")
     """
-    return client.get_ontology_node_by_term(term)
+    node = client.get_ontology_node_by_term(term)
+    # API returns a list, return first item if list
+    return node[0] if isinstance(node, list) and node else node
 
 
 @mcp.tool()
 def get_ontology_groups() -> dict[str, Any]:
     """Get all ontology groups and their root nodes."""
-    return client.get_ontology_groups()
+    groups = client.get_ontology_groups()
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"groups": groups} if isinstance(groups, list) else groups
 
 
 @mcp.tool()
@@ -642,7 +654,9 @@ def get_ontology_type(ontology_id: str) -> dict[str, Any]:
     Args:
         ontology_id: The ontology type ID
     """
-    return client.get_ontology_type(ontology_id)
+    otype = client.get_ontology_type(ontology_id)
+    # API returns a list, return first item if list
+    return otype[0] if isinstance(otype, list) and otype else otype
 
 
 @mcp.tool()
@@ -665,7 +679,9 @@ def get_collection_detail(collection_id: int) -> dict[str, Any]:
     Args:
         collection_id: The collection ID
     """
-    return client.get_collection_detail(collection_id)
+    detail = client.get_collection_detail(collection_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -688,7 +704,9 @@ def get_tag_detail(tag_id: int) -> dict[str, Any]:
     Args:
         tag_id: The tag ID
     """
-    return client.get_tag_detail(tag_id)
+    detail = client.get_tag_detail(tag_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -715,7 +733,9 @@ def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
     Args:
         datasource_id: The data source ID or UUID
     """
-    return client.get_data_source_detail(datasource_id)
+    detail = client.get_data_source_detail(datasource_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -738,7 +758,9 @@ def get_template_detail(template_id: int) -> dict[str, Any]:
     Args:
         template_id: The template ID
     """
-    return client.get_template_detail(template_id)
+    detail = client.get_template_detail(template_id)
+    # API returns a list, return first item if list
+    return detail[0] if isinstance(detail, list) and detail else detail
 
 
 @mcp.tool()
@@ -749,7 +771,9 @@ def get_template_versions(template_id: int) -> dict[str, Any]:
     Args:
         template_id: The template ID
     """
-    return client.get_template_versions(template_id)
+    versions = client.get_template_versions(template_id)
+    # API returns a list, wrap in dict for MCP compatibility
+    return {"versions": versions} if isinstance(versions, list) else versions
 
 
 # Resource endpoints
@@ -757,6 +781,9 @@ def get_template_versions(template_id: int) -> dict[str, Any]:
 def phenotype_resource(phenotype_id: str) -> str:
     """Get a phenotype as a resource."""
     detail = client.get_phenotype_detail(phenotype_id)
+    # API returns a list, return first item if list
+    if isinstance(detail, list) and detail:
+        detail = detail[0]
     return str(detail)
 
 
@@ -764,6 +791,9 @@ def phenotype_resource(phenotype_id: str) -> str:
 def concept_resource(concept_id: str) -> str:
     """Get a concept as a resource."""
     detail = client.get_concept_detail(concept_id)
+    # API returns a list, return first item if list
+    if isinstance(detail, list) and detail:
+        detail = detail[0]
     return str(detail)
 
 
@@ -771,6 +801,9 @@ def concept_resource(concept_id: str) -> str:
 def ontology_resource(term: str) -> str:
     """Get an ontology node as a resource."""
     detail = client.get_ontology_node_by_term(term)
+    # API returns a list, return first item if list
+    if isinstance(detail, list) and detail:
+        detail = detail[0]
     return str(detail)
 
 

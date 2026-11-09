@@ -54,7 +54,7 @@ PHENOTYPELIBRARY_PASSWORD=your_password
 2. Create a new **Web Service**
 3. Use the `render.yaml` configuration file (or manually configure):
    - **Build Command**: `pip install -e .`
-   - **Start Command**: `python -m phenotypelibrary_mcp.server --transport sse --host 0.0.0.0 --port $PORT`
+   - **Start Command**: `uvicorn phenotypelibrary_mcp.server:app --host 0.0.0.0 --port $PORT`
    - **Health Check Path**: `/health`
 4. Add environment variables:
    - `PHENOTYPELIBRARY_BASE_URL` (optional, defaults to SAIL)
@@ -91,11 +91,48 @@ docker-compose up -d
 ### Running the Server
 
 ```bash
-# Run with stdio transport (for MCP clients)
+# Run with stdio transport (for MCP clients like Cursor, Claude Desktop)
 python -m phenotypelibrary_mcp.server
 
 # Or use the entry point
 phenotypelibrary-mcp
+
+# Run with SSE transport (for HTTP-based MCP clients)
+python -m phenotypelibrary_mcp.server --transport sse --host 0.0.0.0 --port 8000
+```
+
+### Using with MCP Inspector
+
+```bash
+# Test with MCP Inspector (SSE transport)
+npx @modelcontextprotocol/inspector https://phenotypelibrarymcp.onrender.com/mcp/sse
+```
+
+### Using with MCP Clients
+
+Add to your MCP client config (Cursor, Claude Desktop, etc.):
+
+```json
+{
+  "mcpServers": {
+    "phenotypelibrary": {
+      "url": "https://phenotypelibrarymcp.onrender.com/mcp/sse"
+    }
+  }
+}
+```
+
+For stdio transport (local development):
+
+```json
+{
+  "mcpServers": {
+    "phenotypelibrary": {
+      "command": "python",
+      "args": ["-m", "phenotypelibrary_mcp.server"]
+    }
+  }
+}
 ```
 
 ### Available Tools
@@ -163,6 +200,17 @@ Pre-built prompts for common tasks:
 - `phenotype_search_prompt(condition)` - Search phenotypes for a condition
 - `concept_search_prompt(condition)` - Search concepts for a condition
 - `ontology_search_prompt(term)` - Search ontology for a term
+
+## API Response Handling
+
+The Concept Library API returns lists for many detail endpoints. This server automatically handles these responses:
+
+- **Detail endpoints** (`get_phenotype_detail`, `get_concept_detail`, etc.): Returns the first item from the list
+- **Codelist endpoints** (`get_phenotype_codelist`, `get_concept_codelist`): Wraps the list in `{"codes": [...]}`
+- **Version endpoints** (`get_phenotype_versions`, `get_concept_versions`, `get_template_versions`): Wraps the list in `{"versions": [...]}`
+- **Ontology groups** (`get_ontology_groups`): Wraps the list in `{"groups": [...]}`
+
+All ID parameters are automatically stripped of whitespace to prevent URL encoding issues.
 
 ## Development
 
