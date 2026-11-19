@@ -165,6 +165,30 @@ class PhenotypeLibraryClient:
         response.raise_for_status()
         return response.json()
 
+    @staticmethod
+    def _normalize_concept_id(concept_id: str) -> str:
+        """Return the concept ID with a single 'C' prefix (e.g. '689' or 'C689' -> 'C689')."""
+        cid = concept_id.strip()
+        return cid if cid.upper().startswith("C") else f"C{cid}"
+
+    @staticmethod
+    def _paginated(data: Any) -> PaginatedResponse:
+        """Coerce an API list response into a PaginatedResponse.
+
+        The API returns either a bare JSON array, a DRF-style mapping
+        (count/next/previous/results), or a page mapping (page/total_pages/data).
+        """
+        if isinstance(data, list):
+            return PaginatedResponse(count=len(data), next=None, previous=None, results=data)
+        if isinstance(data, dict) and "data" in data:
+            return PaginatedResponse(
+                count=len(data["data"]),
+                next=None,
+                previous=None,
+                results=data["data"],
+            )
+        return PaginatedResponse(**data)
+
     # Collections
     def get_collections(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
         """Get all collections."""
@@ -174,7 +198,7 @@ class PhenotypeLibraryClient:
         if id:
             params["id"] = id
         data = self._get("/collections/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_collection_detail(self, collection_id: int) -> dict[str, Any]:
         """Get detail of a specific collection."""
@@ -189,7 +213,7 @@ class PhenotypeLibraryClient:
         if id:
             params["id"] = id
         data = self._get("/tags/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_tag_detail(self, tag_id: int) -> dict[str, Any]:
         """Get detail of a specific tag."""
@@ -223,7 +247,7 @@ class PhenotypeLibraryClient:
         if source:
             params["source"] = source
         data = self._get("/data-sources/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
         """Get detail of a specific data source."""
@@ -269,35 +293,41 @@ class PhenotypeLibraryClient:
         if organisation:
             params["organisation"] = organisation
         data = self._get("/concepts/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
         """Get detail of a specific concept."""
-        return self._get(f"/concepts/C{concept_id.strip()}/detail/")
+        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/detail/")
 
     def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
         """Export codes for a specific concept."""
-        return self._get(f"/concepts/C{concept_id.strip()}/export/codes/")
+        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/export/codes/")
 
     def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
         """Export component data for a specific concept."""
-        return self._get(f"/concepts/C{concept_id.strip()}/export/component-data/")
+        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/export/component-data/")
 
     def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
         """Get version history of a specific concept."""
-        return self._get(f"/concepts/C{concept_id.strip()}/get-versions/")
+        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/get-versions/")
 
     def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Get detail of a specific concept version."""
-        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/detail/")
+        return self._get(
+            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/detail/"
+        )
 
     def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export codes for a specific concept version."""
-        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/export/codes/")
+        return self._get(
+            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/export/codes/"
+        )
 
     def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
         """Export component data for a specific concept version."""
-        return self._get(f"/concepts/C{concept_id.strip()}/version/{version_id.strip()}/export/component-data/")
+        return self._get(
+            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/export/component-data/"
+        )
 
     # Phenotypes
     def get_phenotypes(
@@ -329,7 +359,7 @@ class PhenotypeLibraryClient:
         if created:
             params["created"] = created
         data = self._get("/phenotypes/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
         """Get detail of a specific phenotype."""
@@ -379,16 +409,7 @@ class PhenotypeLibraryClient:
         if reference_ids:
             params["reference_ids"] = reference_ids
         data = self._get("/ontology/node/", params)
-        # Ontology API returns different format: {page, total_pages, data: [...]}
-        # Convert to PaginatedResponse format
-        if "data" in data:
-            return PaginatedResponse(
-                count=len(data["data"]),
-                next=None,
-                previous=None,
-                results=data["data"]
-            )
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
         """Get an ontology node by ID."""
@@ -418,7 +439,7 @@ class PhenotypeLibraryClient:
         if name:
             params["name"] = name
         data = self._get("/templates/", params)
-        return PaginatedResponse(**data)
+        return self._paginated(data)
 
     def get_template_detail(self, template_id: int) -> dict[str, Any]:
         """Get detail of a specific template."""
