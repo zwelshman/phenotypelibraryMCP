@@ -6,10 +6,12 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -e .
-    startCommand: uvicorn phenotypelibrary_mcp.server:app --host 0.0.0.0 --port $PORT
+    startCommand: python server.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
+      - key: MCP_ALLOWED_HOSTS
+        value: phenotypelibrarymcp.onrender.com
       - key: PHENOTYPELIBRARY_BASE_URL
         value: https://conceptlibrary.saildatabank.com/api/v1/
       - key: PHENOTYPELIBRARY_TIMEOUT

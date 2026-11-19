@@ -54,58 +54,49 @@ PHENOTYPELIBRARY_PASSWORD=your_password
 2. Create a new **Web Service**
 3. Use the `render.yaml` configuration file (or manually configure):
    - **Build Command**: `pip install -e .`
-   - **Start Command**: `uvicorn phenotypelibrary_mcp.server:app --host 0.0.0.0 --port $PORT`
+   - **Start Command**: `python server.py`
    - **Health Check Path**: `/health`
 4. Add environment variables:
    - `PHENOTYPELIBRARY_BASE_URL` (optional, defaults to SAIL)
    - `PHENOTYPELIBRARY_TIMEOUT` (optional, defaults to 30.0)
    - `PHENOTYPELIBRARY_USERNAME` (optional, for private data)
    - `PHENOTYPELIBRARY_PASSWORD` (optional, for private data)
+   - `MCP_ALLOWED_HOSTS` (comma-separated Host values the transport accepts; includes your deployed domain, e.g. `phenotypelibrarymcp.onrender.com`)
+   - `MCP_ALLOWED_ORIGINS` (optional, comma-separated browser Origin values)
+   - `MCP_ENABLE_DNS_REBINDING_PROTECTION` (optional, `true` by default; set `false` to disable Host/Origin validation)
 
 ### MCP Endpoint
 
 Once deployed, the MCP server will be available at:
-- **SSE Endpoint**: `https://your-app.onrender.com/mcp/sse`
+- **Streamable HTTP Endpoint**: `https://your-app.onrender.com/mcp`
 - **Health Check**: `https://your-app.onrender.com/health`
-
-### Docker
-
-```bash
-# Build the image
-docker build -t phenotypelibrary-mcp .
-
-# Run the container
-docker run -p 8000:8000 \
-  -e PHENOTYPELIBRARY_BASE_URL=https://conceptlibrary.saildatabank.com/api/v1/ \
-  phenotypelibrary-mcp
-```
 
 ### Docker Compose
 
-```bash
-docker-compose up -d
-```
+_Deprecated_ — Docker files were removed from this project; use the pip
+install + `python server.py` flow above instead.
 
 ## Usage
 
 ### Running the Server
 
 ```bash
-# Run with stdio transport (for MCP clients like Cursor, Claude Desktop)
-python -m phenotypelibrary_mcp.server
+# Streamable HTTP transport (binds $HOST/$PORT, defaults 0.0.0.0:8000)
+python server.py
 
-# Or use the entry point
+# Or use the console script
 phenotypelibrary-mcp
-
-# Run with SSE transport (for HTTP-based MCP clients)
-python -m phenotypelibrary_mcp.server --transport sse --host 0.0.0.0 --port 8000
 ```
+
+> **Local testing note:** DNS rebinding protection is on by default and only accepts
+> hosts listed in `MCP_ALLOWED_HOSTS` (default: `phenotypelibrarymcp.onrender.com`).
+> For local testing, set `MCP_ALLOWED_HOSTS=localhost:*,127.0.0.1:*`.
 
 ### Using with MCP Inspector
 
 ```bash
-# Test with MCP Inspector (SSE transport)
-npx @modelcontextprotocol/inspector https://phenotypelibrarymcp.onrender.com/mcp/sse
+# Test with MCP Inspector (streamable HTTP transport)
+npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 ```
 
 ### Using with MCP Clients
@@ -116,20 +107,7 @@ Add to your MCP client config (Cursor, Claude Desktop, etc.):
 {
   "mcpServers": {
     "phenotypelibrary": {
-      "url": "https://phenotypelibrarymcp.onrender.com/mcp/sse"
-    }
-  }
-}
-```
-
-For stdio transport (local development):
-
-```json
-{
-  "mcpServers": {
-    "phenotypelibrary": {
-      "command": "python",
-      "args": ["-m", "phenotypelibrary_mcp.server"]
+      "url": "https://phenotypelibrarymcp.onrender.com/mcp"
     }
   }
 }
@@ -187,30 +165,18 @@ ontology = await search_ontology(search="diabetes")
 node = await get_ontology_node("MONDO:0005148")
 ```
 
-## Resources
-
-The server also exposes resources:
-- `phenotype://{phenotype_id}` - Phenotype details
-- `concept://{concept_id}` - Concept details
-- `ontology://{term}` - Ontology node details
-
-## Prompts
-
-Pre-built prompts for common tasks:
-- `phenotype_search_prompt(condition)` - Search phenotypes for a condition
-- `concept_search_prompt(condition)` - Search concepts for a condition
-- `ontology_search_prompt(term)` - Search ontology for a term
-
 ## API Response Handling
 
-The Concept Library API returns lists for many detail endpoints. This server automatically handles these responses:
+The Concept Library API returns varying response shapes. `client.list()`
+normalizes them all to a single form:
 
-- **Detail endpoints** (`get_phenotype_detail`, `get_concept_detail`, etc.): Returns the first item from the list
-- **Codelist endpoints** (`get_phenotype_codelist`, `get_concept_codelist`): Wraps the list in `{"codes": [...]}`
-- **Version endpoints** (`get_phenotype_versions`, `get_concept_versions`, `get_template_versions`): Wraps the list in `{"versions": [...]}`
-- **Ontology groups** (`get_ontology_groups`): Wraps the list in `{"groups": [...]}`
+- **Bare JSON array** → wrapped into `{"count": N, "next": null, "previous": null, "results": [...]}`
+- **Paged mapping** (`page`/`total_pages`/`data`) → `data` becomes `results`
+- **DRF-style mapping** (`count`/`next`/`previous`/`results`) → passed through as-is
 
-All ID parameters are automatically stripped of whitespace to prevent URL encoding issues.
+Detail endpoints return a single-item list; the tools unwrap it to the item.
+All ID parameters are stripped of whitespace, and concept IDs get a `C` prefix
+(normalized via `PhenotypeLibraryClient.normalize_concept_id`).
 
 ## Development
 

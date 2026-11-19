@@ -1,212 +1,161 @@
 """Tests for the PhenotypeLibrary MCP Server."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from phenotypelibrary_mcp.server import (
-    PhenotypeLibraryClient,
-    Config,
+import pytest
+
+from server import (
     PaginatedResponse,
+    PhenotypeLibraryClient,
 )
 
 
 @pytest.fixture
-def config():
-    """Create a test configuration."""
-    return Config(
+def client():
+    """Create a test client (no auth)."""
+    return PhenotypeLibraryClient(
         base_url="https://test.api/v1/",
-        username="test_user",
-        password="test_pass",
+        timeout=30.0,
     )
-
-
-@pytest.fixture
-def client(config):
-    """Create a test client."""
-    return PhenotypeLibraryClient(config)
 
 
 def test_client_initialization(client):
     """Test client initialization."""
-    assert client.config.base_url == "https://test.api/v1/"
-    assert client.config.username == "test_user"
-    assert client.config.password == "test_pass"
-    assert client._client is None
+    assert str(client.http.base_url).startswith("https://test.api/v1/")
+    assert client.http.auth is None
 
 
-def test_get_client_creates_http_client(client):
-    """Test that _get_client creates an HTTP client with auth."""
-    with patch("phenotypelibrary_mcp.server.httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        
-        result = client._get_client()
-        
-        assert result == mock_client
-        mock_client_class.assert_called_once()
-        call_kwargs = mock_client_class.call_args.kwargs
-        assert call_kwargs["base_url"] == "https://test.api/v1/"
-        assert call_kwargs["timeout"] == 30.0
-        assert call_kwargs["auth"] is not None
-
-
-def test_get_client_without_auth():
-    """Test client creation without authentication."""
-    config = Config(base_url="https://test.api/v1/")
-    client = PhenotypeLibraryClient(config)
-    
-    with patch("phenotypelibrary_mcp.server.httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        
-        result = client._get_client()
-        
-        assert result == mock_client
-        call_kwargs = mock_client_class.call_args.kwargs
-        assert call_kwargs["auth"] is None
-
-
-def test_close_client(client):
-    """Test closing the HTTP client."""
-    mock_client = MagicMock()
-    client._client = mock_client
-    
-    client.close()
-    
-    mock_client.close.assert_called_once()
-    assert client._client is None
+def test_client_auth_configured():
+    """Test client sets BasicAuth when credentials are present."""
+    c = PhenotypeLibraryClient(
+        base_url="https://test.api/v1/",
+        timeout=30.0,
+        username="user",
+        password="pass",
+    )
+    assert c.http.auth is not None
 
 
 def test_get_request(client):
-    """Test making a GET request."""
+    """Test making a GET request via client.get."""
     mock_response = MagicMock()
     mock_response.json.return_value = {"count": 1, "results": [{"id": "1"}]}
     mock_response.raise_for_status = MagicMock()
-    
-    mock_client = MagicMock()
-    mock_client.get.return_value = mock_response
-    client._client = mock_client
-    
-    result = client._get("/test/", {"param": "value"})
-    
+    mock_http = MagicMock()
+    mock_http.get.return_value = mock_response
+    client.http = mock_http
+
+    result = client.get("/test/", {"param": "value"})
+
     assert result == {"count": 1, "results": [{"id": "1"}]}
-    mock_client.get.assert_called_once_with("/test/", params={"param": "value"})
+    mock_http.get.assert_called_once_with("/test/", params={"param": "value"})
 
 
-def test_get_collections(client):
-    """Test getting collections."""
-    mock_response = {"count": 1, "next": None, "previous": None, "results": [{"id": 1, "name": "Test"}]}
-    
-    with patch.object(client, "_get", new_callable=MagicMock) as mock_get:
-        mock_get.return_value = mock_response
-        
-        result = client.get_collections(search="test")
-        
-        assert isinstance(result, PaginatedResponse)
-        assert result.count == 1
-        mock_get.assert_called_once_with("/collections/", {"search": "test"})
-
-
-def test_get_concepts(client):
-    """Test getting concepts with various parameters."""
-    mock_response = {"count": 1, "next": None, "previous": None, "results": [{"id": "C1", "name": "Test"}]}
-    
-    with patch.object(client, "_get", new_callable=MagicMock) as mock_get:
-        mock_get.return_value = mock_response
-        
-        result = client.get_concepts(
-            search="asthma",
-            tags="1,2",
-            collections="3",
-            page=2,
-            page_size=2,
-            no_pagination=True,
-        )
-        
-        assert isinstance(result, PaginatedResponse)
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
-        assert call_args[0][0] == "/concepts/"
-        params = call_args[0][1]
-        assert params["search"] == "asthma"
-        assert params["tags"] == "1,2"
-        assert params["collections"] == "3"
-        assert params["page"] == 2
-        assert params["page_size"] == 2
-        assert params["no_pagination"] == ""
-
-
-def test_get_phenotypes(client):
-    """Test getting phenotypes with various parameters."""
-    mock_response = {"count": 1, "next": None, "previous": None, "results": [{"id": "PH1", "name": "Test"}]}
-    
-    with patch.object(client, "_get", new_callable=MagicMock) as mock_get:
-        mock_get.return_value = mock_response
-        
-        result = client.get_phenotypes(
-            search="diabetes",
-            template_id=5,
-            tags="1",
-            collections="2",
-            page=1,
-            page_size=1,
-        )
-        
-        assert isinstance(result, PaginatedResponse)
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
-        assert call_args[0][0] == "/phenotypes/"
-        params = call_args[0][1]
-        assert params["search"] == "diabetes"
-        assert params["template_id"] == 5
-        assert params["tags"] == "1"
-        assert params["collections"] == "2"
-
-
-def test_get_ontology_nodes(client):
-    """Test getting ontology nodes."""
-    mock_response = {"count": 1, "next": None, "previous": None, "results": [{"id": 1, "reference_id": "MONDO:0001"}]}
-    
-    with patch.object(client, "_get", new_callable=MagicMock) as mock_get:
-        mock_get.return_value = mock_response
-        
-        result = client.get_ontology_nodes(
-            search="heart",
-            codes="MONDO:0001",
-            exact_codes=True,
-            type_ids="1",
-            reference_ids="MONDO:0001",
-            page=1,
-            page_size=1,
-        )
-        
-        assert isinstance(result, PaginatedResponse)
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
-        assert call_args[0][0] == "/ontology/node/"
-        params = call_args[0][1]
-        assert params["search"] == "heart"
-        assert params["codes"] == "MONDO:0001"
-        assert params["exact_codes"] == ""
-        assert params["type_ids"] == "1"
-        assert params["reference_ids"] == "MONDO:0001"
-
-
-def test_paginated_response_model():
-    """Test PaginatedResponse model validation."""
-    data = {
-        "count": 100,
-        "next": "https://api/test/?page=2",
+def test_list_normalizes_bare_list(client):
+    """A bare JSON array becomes count/results."""
+    data = [{"id": 1}, {"id": 2}]
+    with patch.object(client, "get", return_value=data):
+        result = client.list("/collections/")
+    assert result == {
+        "count": 2,
+        "next": None,
         "previous": None,
         "results": [{"id": 1}, {"id": 2}],
     }
-    
-    response = PaginatedResponse(**data)
-    
-    assert response.count == 100
-    assert response.next == "https://api/test/?page=2"
-    assert response.previous is None
-    assert len(response.results) == 2
+    assert isinstance(PaginatedResponse(**result), PaginatedResponse)
+
+
+def test_list_normalizes_paged_mapping(client):
+    """A page/total_pages/data mapping becomes count/results."""
+    data = {"page": 1, "total_pages": 1, "data": [{"id": 1}]}
+    with patch.object(client, "get", return_value=data):
+        result = client.list("/data-sources/")
+    assert result["count"] == 1
+    assert result["results"] == [{"id": 1}]
+
+
+def test_list_passes_through_drf_shape(client):
+    """A DRF count/next/previous/results mapping passes through unchanged."""
+    data = {
+        "count": 1,
+        "next": "https://test.api/v1/tags/?page=2",
+        "previous": None,
+        "results": [{"id": 1, "name": "Test"}],
+    }
+    with patch.object(client, "get", return_value=data):
+        result = client.list("/tags/", {"search": "test"})
+    assert result == data
+
+
+def test_normalize_concept_id():
+    """Concept IDs get a single 'C' prefix."""
+    assert PhenotypeLibraryClient.normalize_concept_id("714") == "C714"
+    assert PhenotypeLibraryClient.normalize_concept_id("c714") == "c714"
+    assert PhenotypeLibraryClient.normalize_concept_id("C714") == "C714"
+    assert PhenotypeLibraryClient.normalize_concept_id(" 714 ") == "C714"
+
+
+def test_unwrap():
+    """Single-item lists from detail endpoints are unwrapped."""
+    from server import _unwrap
+
+    assert _unwrap([{"id": 1}]) == {"id": 1}
+    assert _unwrap([{"id": 1}, {"id": 2}]) == [{"id": 1}, {"id": 2}]
+    assert _unwrap({"id": 1}) == {"id": 1}
+
+
+def test_mcp_tool_registry():
+    """All expected tools are registered on the FastMCP instance."""
+    import asyncio
+
+    from server import mcp
+
+    tools = asyncio.run(mcp.list_tools())
+    names = {t.name for t in tools}
+    expected = {
+        "search_phenotypes",
+        "get_phenotype_codelist",
+        "get_phenotype_detail",
+        "get_phenotype_versions",
+        "search_concepts",
+        "get_concept_codelist",
+        "get_concept_detail",
+        "get_concept_versions",
+        "search_ontology",
+        "get_ontology_groups",
+        "get_ontology_node",
+        "get_ontology_type",
+        "get_collections",
+        "get_collection_detail",
+        "get_tags",
+        "get_tag_detail",
+        "get_data_sources",
+        "get_data_source_detail",
+        "get_templates",
+        "get_template_detail",
+        "get_template_versions",
+    }
+    assert names == expected
+
+
+def test_mcp_resource_and_prompt_registry():
+    """The stdio/SSE-only resource+prompt helpers were removed with the refactor."""
+    import asyncio
+
+    from server import mcp
+
+    assert list(asyncio.run(mcp.list_resources())) == []
+    assert list(asyncio.run(mcp.list_prompts())) == []
+
+
+def test_health_route_registered():
+    """/health is a custom route on the streamable HTTP ASGI app."""
+    from server import mcp
+
+    app = mcp.streamable_http_app()
+    routes = {r.path for r in app.routes}
+    assert "/health" in routes
+    assert "/mcp" in routes
 
 
 if __name__ == "__main__":

@@ -1,917 +1,506 @@
-"""Main MCP Server for PhenotypeLibrary/Concept Library API."""
+"""PhenotypeLibrary MCP server.
+
+Single-file server for the Phenotype Library / Concept Library API
+(https://conceptlibrary.saildatabank.com/api/v1/).
+
+Run directly: `python server.py` (streamable-HTTP transport at /mcp,
+health check at /health, host/port from the HOST/PORT environment vars).
+"""
+
+from __future__ import annotations
 
 import os
 import sys
-import argparse
-from typing import Any, Optional
-from dataclasses import dataclass
+from typing import Any
 
 import httpx
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
-# Force line buffering for cloud logs
+# Line buffering so logs print instantly in cloud control panels
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-# Load environment variables
 load_dotenv()
 
-
-# Configuration
-@dataclass
-class Config:
-    """Configuration for the PhenotypeLibrary API client."""
-    base_url: str = os.getenv("PHENOTYPELIBRARY_BASE_URL", "https://conceptlibrary.saildatabank.com/api/v1/")
-    timeout: float = float(os.getenv("PHENOTYPELIBRARY_TIMEOUT", "30.0"))
-    username: Optional[str] = os.getenv("PHENOTYPELIBRARY_USERNAME")
-    password: Optional[str] = os.getenv("PHENOTYPELIBRARY_PASSWORD")
+BASE_URL = os.getenv(
+    "PHENOTYPELIBRARY_BASE_URL", "https://conceptlibrary.saildatabank.com/api/v1/"
+)
+TIMEOUT = float(os.getenv("PHENOTYPELIBRARY_TIMEOUT", "30"))
+USERNAME = os.getenv("PHENOTYPELIBRARY_USERNAME")
+PASSWORD = os.getenv("PHENOTYPELIBRARY_PASSWORD")
 
 
-# Global config instance
-config = Config()
-
-
-# Pydantic models for API responses
 class PaginatedResponse(BaseModel):
-    """Base model for paginated API responses."""
+    """The API returns either a bare list, DRF-style count/results, or a paged mapping."""
+
     count: int
-    next: Optional[str] = None
-    previous: Optional[str] = None
+    next: str | None = None
+    previous: str | None = None
     results: list[dict[str, Any]]
 
 
-class Collection(BaseModel):
-    """Collection model."""
-    id: int
-    name: str
-    description: Optional[str] = None
-    created: str
-    modified: str
-
-
-class Tag(BaseModel):
-    """Tag model."""
-    id: int
-    name: str
-    description: Optional[str] = None
-    created: str
-    modified: str
-
-
-class DataSource(BaseModel):
-    """Data source model."""
-    id: int
-    name: str
-    description: Optional[str] = None
-    url: Optional[str] = None
-    source: Optional[str] = None
-    datasource_id: Optional[str] = None
-    uid: Optional[str] = None
-    created: str
-    modified: str
-
-
-class Concept(BaseModel):
-    """Concept model."""
-    id: str
-    name: str
-    description: Optional[str] = None
-    coding_system: Optional[dict] = None
-    owner: Optional[dict] = None
-    organisation: Optional[dict] = None
-    tags: list[dict] = Field(default_factory=list)
-    collections: list[dict] = Field(default_factory=list)
-    created: str
-    modified: str
-    version: Optional[int] = None
-
-
-class Phenotype(BaseModel):
-    """Phenotype model."""
-    id: str
-    name: str
-    description: Optional[str] = None
-    template: Optional[dict] = None
-    owner: Optional[dict] = None
-    organisation: Optional[dict] = None
-    tags: list[dict] = Field(default_factory=list)
-    collections: list[dict] = Field(default_factory=list)
-    created: str
-    modified: str
-    version: Optional[int] = None
-
-
-class OntologyNode(BaseModel):
-    """Ontology node model."""
-    id: int
-    reference_id: str
-    name: str
-    description: Optional[str] = None
-    type: Optional[dict] = None
-    parent: Optional[int] = None
-    children: list[int] = Field(default_factory=list)
-    mappings: list[dict] = Field(default_factory=list)
-
-
-class Template(BaseModel):
-    """Template model."""
-    id: int
-    name: str
-    description: Optional[str] = None
-    fields: list[dict] = Field(default_factory=list)
-    created: str
-    modified: str
-
-
-# API Client
 class PhenotypeLibraryClient:
-    """Client for interacting with the PhenotypeLibrary/Concept Library API."""
+    """Thin sync httpx client for the Phenotype Library API."""
 
-    def __init__(self, config: Config):
-        self.config = config
-        self._client: Optional[httpx.Client] = None
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 30.0,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> None:
+        auth = httpx.BasicAuth(username, password) if username and password else None
+        self.http = httpx.Client(
+            base_url=base_url,
+            timeout=timeout,
+            auth=auth,
+            headers={"Accept": "application/json"},
+        )
 
-    def _get_client(self) -> httpx.Client:
-        """Get or create the HTTP client."""
-        if self._client is None:
-            auth = None
-            if self.config.username and self.config.password:
-                auth = httpx.BasicAuth(self.config.username, self.config.password)
-            
-            self._client = httpx.Client(
-                base_url=self.config.base_url,
-                timeout=self.config.timeout,
-                auth=auth,
-                headers={"Accept": "application/json"},
-            )
-        return self._client
-
-    def close(self):
-        """Close the HTTP client."""
-        if self._client:
-            self._client.close()
-            self._client = None
-
-    def _get(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
-        """Make a GET request to the API."""
-        client = self._get_client()
-        response = client.get(path, params=params)
+    def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """GET a path and return parsed JSON."""
+        response = self.http.get(path, params=params)
         response.raise_for_status()
         return response.json()
 
+    def list(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """GET a list endpoint and normalize any of the API's response shapes."""
+        data = self.get(path, params)
+        if isinstance(data, list):
+            return {"count": len(data), "next": None, "previous": None, "results": data}
+        if isinstance(data, dict) and "data" in data:
+            return {"count": len(data["data"]), "next": None, "previous": None, "results": data["data"]}
+        return data
+
+    def close(self) -> None:
+        self.http.close()
+
     @staticmethod
-    def _normalize_concept_id(concept_id: str) -> str:
-        """Return the concept ID with a single 'C' prefix (e.g. '689' or 'C689' -> 'C689')."""
+    def normalize_concept_id(concept_id: str) -> str:
+        """Return the concept ID with a single 'C' prefix ('689' or 'c689' -> 'C689')."""
         cid = concept_id.strip()
         return cid if cid.upper().startswith("C") else f"C{cid}"
 
-    @staticmethod
-    def _paginated(data: Any) -> PaginatedResponse:
-        """Coerce an API list response into a PaginatedResponse.
 
-        The API returns either a bare JSON array, a DRF-style mapping
-        (count/next/previous/results), or a page mapping (page/total_pages/data).
-        """
-        if isinstance(data, list):
-            return PaginatedResponse(count=len(data), next=None, previous=None, results=data)
-        if isinstance(data, dict) and "data" in data:
-            return PaginatedResponse(
-                count=len(data["data"]),
-                next=None,
-                previous=None,
-                results=data["data"],
-            )
-        return PaginatedResponse(**data)
-
-    # Collections
-    def get_collections(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
-        """Get all collections."""
-        params = {}
-        if search:
-            params["search"] = search
-        if id:
-            params["id"] = id
-        data = self._get("/collections/", params)
-        return self._paginated(data)
-
-    def get_collection_detail(self, collection_id: int) -> dict[str, Any]:
-        """Get detail of a specific collection."""
-        return self._get(f"/collections/{collection_id}/detail/")
-
-    # Tags
-    def get_tags(self, search: Optional[str] = None, id: Optional[str] = None) -> PaginatedResponse:
-        """Get all tags."""
-        params = {}
-        if search:
-            params["search"] = search
-        if id:
-            params["id"] = id
-        data = self._get("/tags/", params)
-        return self._paginated(data)
-
-    def get_tag_detail(self, tag_id: int) -> dict[str, Any]:
-        """Get detail of a specific tag."""
-        return self._get(f"/tags/{tag_id}/detail/")
-
-    # Data Sources
-    def get_data_sources(
-        self,
-        search: Optional[str] = None,
-        id: Optional[str] = None,
-        name: Optional[str] = None,
-        uid: Optional[str] = None,
-        datasource_id: Optional[str] = None,
-        url: Optional[str] = None,
-        source: Optional[str] = None,
-    ) -> PaginatedResponse:
-        """Get all data sources."""
-        params = {}
-        if search:
-            params["search"] = search
-        if id:
-            params["id"] = id
-        if name:
-            params["name"] = name
-        if uid:
-            params["uid"] = uid
-        if datasource_id:
-            params["datasource_id"] = datasource_id.strip()
-        if url:
-            params["url"] = url
-        if source:
-            params["source"] = source
-        data = self._get("/data-sources/", params)
-        return self._paginated(data)
-
-    def get_data_source_detail(self, datasource_id: str) -> dict[str, Any]:
-        """Get detail of a specific data source."""
-        return self._get(f"/data-sources/{datasource_id.strip()}/detail/")
-
-    def get_data_source_export(self, datasource_id: str) -> dict[str, Any]:
-        """Export a specific data source."""
-        return self._get(f"/data-sources/{datasource_id.strip()}/export/")
-
-    # Concepts
-    def get_concepts(
-        self,
-        search: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 1,
-        no_pagination: bool = False,
-        phenotype_id: Optional[str] = None,
-        phenotype_owner: Optional[str] = None,
-        tags: Optional[str] = None,
-        collections: Optional[str] = None,
-        coding_system: Optional[str] = None,
-        owner: Optional[str] = None,
-        organisation: Optional[str] = None,
-    ) -> PaginatedResponse:
-        """Get all concepts with optional filtering."""
-        params = {"page": page, "page_size": page_size}
-        if search:
-            params["search"] = search
-        if no_pagination:
-            params["no_pagination"] = ""
-        if phenotype_id:
-            params["phenotype_id"] = phenotype_id
-        if phenotype_owner:
-            params["phenotype_owner"] = phenotype_owner
-        if tags:
-            params["tags"] = tags
-        if collections:
-            params["collections"] = collections
-        if coding_system:
-            params["coding_system"] = coding_system
-        if owner:
-            params["owner"] = owner
-        if organisation:
-            params["organisation"] = organisation
-        data = self._get("/concepts/", params)
-        return self._paginated(data)
-
-    def get_concept_detail(self, concept_id: str) -> dict[str, Any]:
-        """Get detail of a specific concept."""
-        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/detail/")
-
-    def get_concept_codelist(self, concept_id: str) -> dict[str, Any]:
-        """Export codes for a specific concept."""
-        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/export/codes/")
-
-    def get_concept_component_data(self, concept_id: str) -> dict[str, Any]:
-        """Export component data for a specific concept."""
-        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/export/component-data/")
-
-    def get_concept_versions(self, concept_id: str) -> dict[str, Any]:
-        """Get version history of a specific concept."""
-        return self._get(f"/concepts/{self._normalize_concept_id(concept_id)}/get-versions/")
-
-    def get_concept_version_detail(self, concept_id: str, version_id: str) -> dict[str, Any]:
-        """Get detail of a specific concept version."""
-        return self._get(
-            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/detail/"
-        )
-
-    def get_concept_version_codelist(self, concept_id: str, version_id: str) -> dict[str, Any]:
-        """Export codes for a specific concept version."""
-        return self._get(
-            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/export/codes/"
-        )
-
-    def get_concept_version_component_data(self, concept_id: str, version_id: str) -> dict[str, Any]:
-        """Export component data for a specific concept version."""
-        return self._get(
-            f"/concepts/{self._normalize_concept_id(concept_id)}/version/{version_id.strip()}/export/component-data/"
-        )
-
-    # Phenotypes
-    def get_phenotypes(
-        self,
-        search: Optional[str] = None,
-        template_id: Optional[int] = None,
-        template_version_id: Optional[int] = None,
-        page: int = 1,
-        page_size: int = 1,
-        no_pagination: bool = False,
-        tags: Optional[str] = None,
-        collections: Optional[str] = None,
-        created: Optional[str] = None,
-    ) -> PaginatedResponse:
-        """Get all phenotypes with optional filtering."""
-        params = {"page": page, "page_size": page_size}
-        if search:
-            params["search"] = search
-        if template_id:
-            params["template_id"] = template_id
-        if template_version_id:
-            params["template_version_id"] = template_version_id
-        if no_pagination:
-            params["no_pagination"] = ""
-        if tags:
-            params["tags"] = tags
-        if collections:
-            params["collections"] = collections
-        if created:
-            params["created"] = created
-        data = self._get("/phenotypes/", params)
-        return self._paginated(data)
-
-    def get_phenotype_detail(self, phenotype_id: str) -> dict[str, Any]:
-        """Get detail of a specific phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id.strip()}/detail/")
-
-    def get_phenotype_export(self, phenotype_id: str, field: str) -> dict[str, Any]:
-        """Export a specific field of a phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id.strip()}/export/{field}/")
-
-    def get_phenotype_versions(self, phenotype_id: str) -> dict[str, Any]:
-        """Get version history of a specific phenotype."""
-        return self._get(f"/phenotypes/{phenotype_id.strip()}/get-versions/")
-
-    def get_phenotype_version_detail(self, phenotype_id: str, version_id: str) -> dict[str, Any]:
-        """Get detail of a specific phenotype version."""
-        return self._get(f"/phenotypes/{phenotype_id.strip()}/version/{version_id.strip()}/detail/")
-
-    def get_phenotype_version_export(self, phenotype_id: str, version_id: str, field: str) -> dict[str, Any]:
-        """Export a specific field of a phenotype version."""
-        return self._get(f"/phenotypes/{phenotype_id.strip()}/version/{version_id.strip()}/export/{field}/")
-
-    # Ontology
-    def get_ontology_groups(self) -> dict[str, Any]:
-        """Get all ontology groups and their root nodes."""
-        return self._get("/ontology/")
-
-    def get_ontology_nodes(
-        self,
-        search: Optional[str] = None,
-        codes: Optional[str] = None,
-        exact_codes: bool = False,
-        type_ids: Optional[str] = None,
-        reference_ids: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 1,
-    ) -> PaginatedResponse:
-        """Query ontology nodes."""
-        params = {"page": page, "page_size": page_size}
-        if search:
-            params["search"] = search
-        if codes:
-            params["codes"] = codes
-        if exact_codes:
-            params["exact_codes"] = ""
-        if type_ids:
-            params["type_ids"] = type_ids
-        if reference_ids:
-            params["reference_ids"] = reference_ids
-        data = self._get("/ontology/node/", params)
-        return self._paginated(data)
-
-    def get_ontology_node_by_id(self, node_id: str) -> dict[str, Any]:
-        """Get an ontology node by ID."""
-        return self._get(f"/ontology/node/{node_id.strip()}/")
-
-    def get_ontology_node_by_term(self, term: str) -> dict[str, Any]:
-        """Get an ontology node by term/reference_id."""
-        return self._get(f"/ontology/node/{term.strip()}/")
-
-    def get_ontology_type(self, ontology_id: str) -> dict[str, Any]:
-        """Get ontology group type detail."""
-        return self._get(f"/ontology/type/{ontology_id.strip()}/")
-
-    # Templates
-    def get_templates(
-        self,
-        search: Optional[str] = None,
-        id: Optional[str] = None,
-        name: Optional[str] = None,
-    ) -> PaginatedResponse:
-        """Get all templates."""
-        params = {}
-        if search:
-            params["search"] = search
-        if id:
-            params["id"] = id.strip()
-        if name:
-            params["name"] = name
-        data = self._get("/templates/", params)
-        return self._paginated(data)
-
-    def get_template_detail(self, template_id: int) -> dict[str, Any]:
-        """Get detail of a specific template."""
-        return self._get(f"/templates/{template_id}/detail/")
-
-    def get_template_versions(self, template_id: int) -> dict[str, Any]:
-        """Get version history of a specific template."""
-        return self._get(f"/templates/{template_id}/get-versions/")
-
-    def get_template_version_detail(self, template_id: int, version_id: str) -> dict[str, Any]:
-        """Get detail of a specific template version."""
-        return self._get(f"/templates/{template_id}/version/{version_id.strip()}/detail/")
+client = PhenotypeLibraryClient(BASE_URL, TIMEOUT, USERNAME, PASSWORD)
 
 
-# 1. Initialize FastMCP with transport security configured for cloud hosting
-mcp = FastMCP(
+from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
+
+_orig_report_progress = Context.report_progress
+
+
+def _safe_report_progress(self: Context, *args: Any, **kwargs: Any) -> None:
+    """Tolerate the SDK passing 'current' instead of 'progress'; never crash tools."""
+    if "current" in kwargs and "progress" not in kwargs:
+        kwargs["progress"] = kwargs.pop("current")
+    try:
+        _orig_report_progress(self, *args, **kwargs)
+    except Exception:  # noqa: BLE001, S110 — progress reporting must never crash tools
+        pass
+
+
+Context.report_progress = _safe_report_progress
+
+# Explicit transport security: the SDK auto-enables DNS rebinding protection
+# with localhost-only allowed_hosts when transport_security is None AND the
+# default host is 127.0.0.1 — which 421s production Host headers (Render's
+# phenotypelibrarymcp.onrender.com) and rejects remote clients. Configured
+# explicitly here instead: protection on unless env disables it, hosts and
+# origins from env so the deployed domain works.
+mcp: FastMCP = FastMCP(
     "PhenotypeLibrary",
+    instructions=(
+        "Tools for the Phenotype Library / Concept Library API. "
+        "Use search_phenotypes / search_concepts for discovery, "
+        "get_*_detail / get_*_codelist / get_*_versions for codes and "
+        "definitions, and search_ontology for MONDO/MeSH/SNOMED/ICD-10 terms."
+    ),
     transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-        allowed_hosts=["*"]
-    )
+        enable_dns_rebinding_protection=(
+            os.environ.get("MCP_ENABLE_DNS_REBINDING_PROTECTION", "true").lower()
+            not in ("false", "0", "no", "off")
+        ),
+        allowed_hosts=[
+            h.strip()
+            for h in os.environ.get("MCP_ALLOWED_HOSTS", "phenotypelibrarymcp.onrender.com").split(",")
+            if h.strip()
+        ],
+        allowed_origins=[
+            o.strip()
+            for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",")
+            if o.strip()
+        ],
+    ),
 )
 
-# Initialize the client
-client = PhenotypeLibraryClient(config)
 
+def _unwrap(value: Any) -> Any:
+    """Detail endpoints return a single-item list; return the item or the value."""
+    return value[0] if isinstance(value, list) and len(value) == 1 else value
+
+
+def _paginate(params: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
+    params["page"] = page
+    params["page_size"] = page_size
+    return params
+
+
+# ============================================================
+# Phenotypes
+# ============================================================
 
 @mcp.tool()
 def search_phenotypes(
-    search: Optional[str] = None,
-    template_id: Optional[int] = None,
-    tags: Optional[str] = None,
-    collections: Optional[str] = None,
+    search: str | None = None,
+    template_id: int | None = None,
+    tags: str | None = None,
+    collections: str | None = None,
     page: int = 1,
     page_size: int = 1,
     no_pagination: bool = False,
 ) -> dict[str, Any]:
-    """
-    Search for phenotypes in the Concept Library.
-    
+    """Search phenotype definitions in the Concept Library.
+
     Args:
-        search: Full-text search across phenotype name and description
-        template_id: Filter by template ID
-        tags: Comma-separated list of tag IDs or names
-        collections: Comma-separated list of collection IDs or names
-        page: Page number (default: 1)
-        page_size: Page size enum (1=20, 2=50, 3=100)
-        no_pagination: Disable pagination to get all results
+        search: Full-text search across phenotype name and description.
+        template_id: Filter by template ID.
+        tags: Comma-separated list of tag IDs or names.
+        collections: Comma-separated list of collection IDs or names.
+        page: Page number (default 1).
+        page_size: Page size enum (1=20, 2=50, 3=100).
+        no_pagination: Disable pagination to get all results.
     """
-    result = client.get_phenotypes(
-        search=search,
-        template_id=template_id,
-        tags=tags,
-        collections=collections,
-        page=page,
-        page_size=page_size,
-        no_pagination=no_pagination,
-    )
-    return result.model_dump()
+    params = _paginate({}, page, page_size)
+    if search:
+        params["search"] = search
+    if template_id:
+        params["template_id"] = template_id
+    if tags:
+        params["tags"] = tags
+    if collections:
+        params["collections"] = collections
+    if no_pagination:
+        params["no_pagination"] = ""
+    return client.list("/phenotypes/", params)
 
 
 @mcp.tool()
-def get_phenotype_detail(phenotype_id: str) -> dict[str, Any]:
-    """
-    Get detailed information about a specific phenotype.
-    
+def get_phenotype_detail(phenotype_id: str) -> Any:
+    """Get detailed information about a specific phenotype.
+
     Args:
-        phenotype_id: The phenotype ID (e.g., "PH1")
+        phenotype_id: Phenotype ID (e.g., "PH1").
     """
-    detail = client.get_phenotype_detail(phenotype_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+    return _unwrap(client.get(f"/phenotypes/{phenotype_id.strip()}/detail/"))
 
 
 @mcp.tool()
-def get_phenotype_codelist(phenotype_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
-    """
-    Get the codelist (clinical codes) for a phenotype.
-    
+def get_phenotype_codelist(phenotype_id: str, version_id: str | None = None) -> Any:
+    """Get the codelist (clinical codes) for a phenotype.
+
     Args:
-        phenotype_id: The phenotype ID (e.g., "PH1")
-        version_id: Optional version ID to get a specific version
+        phenotype_id: Phenotype ID (e.g., "PH1").
+        version_id: Optional version ID to get a specific version.
     """
+    phenotype_id = phenotype_id.strip()
     if version_id:
-        codes = client.get_phenotype_version_export(phenotype_id, version_id, "codes")
-    else:
-        codes = client.get_phenotype_export(phenotype_id, "codes")
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"codes": codes} if isinstance(codes, list) else codes
+        return _unwrap(
+            client.get(f"/phenotypes/{phenotype_id}/version/{version_id.strip()}/export/codes/")
+        )
+    return _unwrap(client.get(f"/phenotypes/{phenotype_id}/export/codes/"))
 
 
 @mcp.tool()
-def get_phenotype_versions(phenotype_id: str) -> dict[str, Any]:
-    """
-    Get version history for a phenotype.
-    
-    Args:
-        phenotype_id: The phenotype ID (e.g., "PH1")
-    """
-    versions = client.get_phenotype_versions(phenotype_id)
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"versions": versions} if isinstance(versions, list) else versions
+def get_phenotype_versions(phenotype_id: str) -> Any:
+    """Get version history for a phenotype.
 
+    Args:
+        phenotype_id: Phenotype ID (e.g., "PH1").
+    """
+    return _unwrap(client.get(f"/phenotypes/{phenotype_id.strip()}/get-versions/"))
+
+
+# ============================================================
+# Concepts (clinical code lists)
+# ============================================================
 
 @mcp.tool()
 def search_concepts(
-    search: Optional[str] = None,
-    tags: Optional[str] = None,
-    collections: Optional[str] = None,
-    coding_system: Optional[str] = None,
+    search: str | None = None,
+    tags: str | None = None,
+    collections: str | None = None,
+    coding_system: str | None = None,
     page: int = 1,
     page_size: int = 1,
     no_pagination: bool = False,
 ) -> dict[str, Any]:
-    """
-    Search for concepts (clinical code lists) in the Concept Library.
-    
+    """Search for concepts (clinical code lists) in the Concept Library.
+
     Args:
-        search: Full-text search across concept name and description
-        tags: Comma-separated list of tag IDs
-        collections: Comma-separated list of collection IDs
-        coding_system: Comma-separated list of coding system IDs
-        page: Page number (default: 1)
-        page_size: Page size enum (1=20, 2=50, 3=100)
-        no_pagination: Disable pagination to get all results
+        search: Full-text search across concept name and description.
+        tags: Comma-separated list of tag IDs or names.
+        collections: Comma-separated list of collection IDs or names.
+        coding_system: Comma-separated list of coding system IDs.
+        page: Page number (default 1).
+        page_size: Page size enum (1=20, 2=50, 3=100).
+        no_pagination: Disable pagination to get all results.
     """
-    result = client.get_concepts(
-        search=search,
-        tags=tags,
-        collections=collections,
-        coding_system=coding_system,
-        page=page,
-        page_size=page_size,
-        no_pagination=no_pagination,
+    params = _paginate({}, page, page_size)
+    if search:
+        params["search"] = search
+    if tags:
+        params["tags"] = tags
+    if collections:
+        params["collections"] = collections
+    if coding_system:
+        params["coding_system"] = coding_system
+    if no_pagination:
+        params["no_pagination"] = ""
+    return client.list("/concepts/", params)
+
+
+@mcp.tool()
+def get_concept_detail(concept_id: str) -> Any:
+    """Get detailed information about a specific concept.
+
+    Args:
+        concept_id: Concept ID (e.g., "714" or "C714").
+    """
+    return _unwrap(
+        client.get(f"/concepts/{client.normalize_concept_id(concept_id)}/detail/")
     )
-    return result.model_dump()
 
 
 @mcp.tool()
-def get_concept_detail(concept_id: str) -> dict[str, Any]:
-    """
-    Get detailed information about a specific concept.
-    
-    Args:
-        concept_id: The concept ID (e.g., "C714")
-    """
-    detail = client.get_concept_detail(concept_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+def get_concept_codelist(concept_id: str, version_id: str | None = None) -> Any:
+    """Get the codelist (clinical codes) for a concept.
 
-
-@mcp.tool()
-def get_concept_codelist(concept_id: str, version_id: Optional[str] = None) -> dict[str, Any]:
-    """
-    Get the codelist (clinical codes) for a concept.
-    
     Args:
-        concept_id: The concept ID (e.g., "C714")
-        version_id: Optional version ID to get a specific version
+        concept_id: Concept ID (e.g., "714" or "C714").
+        version_id: Optional version ID to get a specific version.
     """
+    cid = client.normalize_concept_id(concept_id)
     if version_id:
-        codes = client.get_concept_version_codelist(concept_id, version_id)
-    else:
-        codes = client.get_concept_codelist(concept_id)
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"codes": codes} if isinstance(codes, list) else codes
+        return _unwrap(client.get(f"/concepts/{cid}/version/{version_id.strip()}/export/codes/"))
+    return _unwrap(client.get(f"/concepts/{cid}/export/codes/"))
 
 
 @mcp.tool()
-def get_concept_versions(concept_id: str) -> dict[str, Any]:
-    """
-    Get version history for a concept.
-    
-    Args:
-        concept_id: The concept ID (e.g., "C714")
-    """
-    versions = client.get_concept_versions(concept_id)
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"versions": versions} if isinstance(versions, list) else versions
+def get_concept_versions(concept_id: str) -> Any:
+    """Get version history for a concept.
 
+    Args:
+        concept_id: Concept ID (e.g., "714" or "C714").
+    """
+    return _unwrap(client.get(f"/concepts/{client.normalize_concept_id(concept_id)}/get-versions/"))
+
+
+# ============================================================
+# Ontology
+# ============================================================
 
 @mcp.tool()
 def search_ontology(
-    search: Optional[str] = None,
-    codes: Optional[str] = None,
+    search: str | None = None,
+    codes: str | None = None,
     exact_codes: bool = False,
-    type_ids: Optional[str] = None,
-    reference_ids: Optional[str] = None,
+    type_ids: str | None = None,
+    reference_ids: str | None = None,
     page: int = 1,
     page_size: int = 1,
 ) -> dict[str, Any]:
-    """
-    Search the ontology (MONDO, MeSH, SNOMED, etc.) for terms.
-    
+    """Search the ontology (MONDO, MeSH, SNOMED, etc.) for terms.
+
     Args:
-        search: Full-text search across names, descriptions & synonyms
-        codes: Search by codes (e.g., "MONDO:0004995", "MESH:D002309", "ICD10CM:I21")
-        exact_codes: If true, search for exact codes instead of fuzzy matching
-        type_ids: Filter by ontology type IDs
-        reference_ids: Filter by vocabulary reference IDs
-        page: Page number (default: 1)
-        page_size: Page size enum (1=20, 2=50, 3=100)
+        search: Full-text search across names, descriptions & synonyms.
+        codes: Search by codes (e.g., "MONDO:0004995", "MESH:D002309", "ICD10CM:I21").
+        exact_codes: If true, search for exact codes instead of fuzzy matching.
+        type_ids: Filter by ontology type IDs.
+        reference_ids: Filter by vocabulary reference IDs.
+        page: Page number (default 1).
+        page_size: Page size enum (1=20, 2=50, 3=100).
     """
-    result = client.get_ontology_nodes(
-        search=search,
-        codes=codes,
-        exact_codes=exact_codes,
-        type_ids=type_ids,
-        reference_ids=reference_ids,
-        page=page,
-        page_size=page_size,
-    )
-    return result.model_dump()
+    params = _paginate({}, page, page_size)
+    if search:
+        params["search"] = search
+    if codes:
+        params["codes"] = codes
+    if exact_codes:
+        params["exact_codes"] = ""
+    if type_ids:
+        params["type_ids"] = type_ids
+    if reference_ids:
+        params["reference_ids"] = reference_ids
+    return client.list("/ontology/node/", params)
 
 
 @mcp.tool()
-def get_ontology_node(term: str) -> dict[str, Any]:
-    """
-    Get an ontology node by term/reference_id.
-    
-    Args:
-        term: The ontology term (e.g., "MONDO:0004995", "MESH:D002309", "SCTID:394579002")
-    """
-    node = client.get_ontology_node_by_term(term)
-    # API returns a list, return first item if list
-    return node[0] if isinstance(node, list) and node else node
-
-
-@mcp.tool()
-def get_ontology_groups() -> dict[str, Any]:
+def get_ontology_groups() -> Any:
     """Get all ontology groups and their root nodes."""
-    groups = client.get_ontology_groups()
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"groups": groups} if isinstance(groups, list) else groups
+    return _unwrap(client.get("/ontology/"))
 
 
 @mcp.tool()
-def get_ontology_type(ontology_id: str) -> dict[str, Any]:
-    """
-    Get ontology group type detail.
-    
+def get_ontology_node(term: str) -> Any:
+    """Get an ontology node by term/reference_id.
+
     Args:
-        ontology_id: The ontology type ID
+        term: Ontology term (e.g., "MONDO:0004995", "MESH:D002309", "SCTID:394579002").
     """
-    otype = client.get_ontology_type(ontology_id)
-    # API returns a list, return first item if list
-    return otype[0] if isinstance(otype, list) and otype else otype
+    return _unwrap(client.get(f"/ontology/node/{term.strip()}/"))
 
 
 @mcp.tool()
-def get_collections(search: Optional[str] = None) -> dict[str, Any]:
-    """
-    Get all collections.
-    
+def get_ontology_type(ontology_id: str) -> Any:
+    """Get ontology group type detail.
+
     Args:
-        search: Full-text search across collection name
+        ontology_id: The ontology type ID.
     """
-    result = client.get_collections(search=search)
-    return result.model_dump()
+    return _unwrap(client.get(f"/ontology/type/{ontology_id.strip()}/"))
+
+
+# ============================================================
+# Collections & tags
+# ============================================================
+
+@mcp.tool()
+def get_collections(search: str | None = None) -> dict[str, Any]:
+    """Get all collections of related phenotypes/concepts.
+
+    Args:
+        search: Filter collections by name.
+    """
+    return client.list("/collections/", {"search": search} if search else None)
 
 
 @mcp.tool()
-def get_collection_detail(collection_id: int) -> dict[str, Any]:
-    """
-    Get detail of a specific collection.
-    
+def get_collection_detail(collection_id: int) -> Any:
+    """Get details of a specific collection.
+
     Args:
-        collection_id: The collection ID
+        collection_id: The collection ID.
     """
-    detail = client.get_collection_detail(collection_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+    return _unwrap(client.get(f"/collections/{collection_id}/detail/"))
 
 
 @mcp.tool()
-def get_tags(search: Optional[str] = None) -> dict[str, Any]:
-    """
-    Get all tags.
-    
+def get_tags(search: str | None = None) -> dict[str, Any]:
+    """Get all tags used to categorize phenotypes/concepts.
+
     Args:
-        search: Full-text search across tag name
+        search: Filter tags by name.
     """
-    result = client.get_tags(search=search)
-    return result.model_dump()
+    return client.list("/tags/", {"search": search} if search else None)
 
 
 @mcp.tool()
-def get_tag_detail(tag_id: int) -> dict[str, Any]:
-    """
-    Get detail of a specific tag.
-    
+def get_tag_detail(tag_id: int) -> Any:
+    """Get details of a specific tag.
+
     Args:
-        tag_id: The tag ID
+        tag_id: The tag ID.
     """
-    detail = client.get_tag_detail(tag_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+    return _unwrap(client.get(f"/tags/{tag_id}/detail/"))
+
+
+# ============================================================
+# Data sources & templates
+# ============================================================
+
+@mcp.tool()
+def get_data_sources(search: str | None = None, name: str | None = None) -> dict[str, Any]:
+    """Get all data sources (e.g., TPP, NHS Digital).
+
+    Args:
+        search: Filter data sources by name/description.
+        name: Case-insensitive exact match on the name field.
+    """
+    params: dict[str, Any] = _paginate({}, 1, 3)
+    if search:
+        params["search"] = search
+    if name:
+        params["name"] = name
+    return client.list("/data-sources/", params)
 
 
 @mcp.tool()
-def get_data_sources(
-    search: Optional[str] = None,
-    name: Optional[str] = None,
-) -> dict[str, Any]:
-    """
-    Get all data sources.
-    
+def get_data_source_detail(datasource_id: str) -> Any:
+    """Get details of a specific data source.
+
     Args:
-        search: Full-text search across name and description
-        name: Case insensitive direct match of name field
+        datasource_id: The data source ID or UUID.
     """
-    result = client.get_data_sources(search=search, name=name)
-    return result.model_dump()
+    return _unwrap(client.get(f"/data-sources/{datasource_id.strip()}/detail/"))
 
 
 @mcp.tool()
-def get_data_source_detail(datasource_id: str) -> dict[str, Any]:
-    """
-    Get detail of a specific data source.
-    
+def get_templates(search: str | None = None) -> dict[str, Any]:
+    """Get all templates.
+
     Args:
-        datasource_id: The data source ID or UUID
+        search: Filter templates by name/description.
     """
-    detail = client.get_data_source_detail(datasource_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+    return client.list("/templates/", {"search": search} if search else None)
 
 
 @mcp.tool()
-def get_templates(search: Optional[str] = None) -> dict[str, Any]:
-    """
-    Get all templates.
-    
+def get_template_detail(template_id: int) -> Any:
+    """Get details of a specific template.
+
     Args:
-        search: Full-text search across template name and description
+        template_id: The template ID.
     """
-    result = client.get_templates(search=search)
-    return result.model_dump()
+    return _unwrap(client.get(f"/templates/{template_id}/detail/"))
 
 
 @mcp.tool()
-def get_template_detail(template_id: int) -> dict[str, Any]:
-    """
-    Get detail of a specific template.
-    
+def get_template_versions(template_id: int) -> Any:
+    """Get version history for a template.
+
     Args:
-        template_id: The template ID
+        template_id: The template ID.
     """
-    detail = client.get_template_detail(template_id)
-    # API returns a list, return first item if list
-    return detail[0] if isinstance(detail, list) and detail else detail
+    return _unwrap(client.get(f"/templates/{template_id}/get-versions/"))
 
 
-@mcp.tool()
-def get_template_versions(template_id: int) -> dict[str, Any]:
-    """
-    Get version history for a template.
-    
-    Args:
-        template_id: The template ID
-    """
-    versions = client.get_template_versions(template_id)
-    # API returns a list, wrap in dict for MCP compatibility
-    return {"versions": versions} if isinstance(versions, list) else versions
+# =============================================================================
+# Health check (custom route, separate from the MCP path)
+# =============================================================================
+
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 
-# Resource endpoints
-@mcp.resource("phenotype://{phenotype_id}")
-def phenotype_resource(phenotype_id: str) -> str:
-    """Get a phenotype as a resource."""
-    detail = client.get_phenotype_detail(phenotype_id)
-    # API returns a list, return first item if list
-    if isinstance(detail, list) and detail:
-        detail = detail[0]
-    return str(detail)
-
-
-@mcp.resource("concept://{concept_id}")
-def concept_resource(concept_id: str) -> str:
-    """Get a concept as a resource."""
-    detail = client.get_concept_detail(concept_id)
-    # API returns a list, return first item if list
-    if isinstance(detail, list) and detail:
-        detail = detail[0]
-    return str(detail)
-
-
-@mcp.resource("ontology://{term}")
-def ontology_resource(term: str) -> str:
-    """Get an ontology node as a resource."""
-    detail = client.get_ontology_node_by_term(term)
-    # API returns a list, return first item if list
-    if isinstance(detail, list) and detail:
-        detail = detail[0]
-    return str(detail)
-
-
-# Prompts
-@mcp.prompt()
-def phenotype_search_prompt(condition: str) -> str:
-    """Generate a prompt for searching phenotypes related to a condition."""
-    return f"Search for phenotypes related to {condition} in the Concept Library. Use the search_phenotypes tool with search='{condition}'."
-
-
-@mcp.prompt()
-def concept_search_prompt(condition: str) -> str:
-    """Generate a prompt for searching concepts related to a condition."""
-    return f"Search for clinical code lists (concepts) related to {condition} in the Concept Library. Use the search_concepts tool with search='{condition}'."
-
-
-@mcp.prompt()
-def ontology_search_prompt(term: str) -> str:
-    """Generate a prompt for searching ontology terms."""
-    return f"Search the ontology for terms related to {term}. Use the search_ontology tool with search='{term}'."
-
-
-# 2. Create standard FastAPI application
-app = FastAPI(
-    title="PhenotypeLibrary MCP Server",
-    description="Model Context Protocol (MCP) server for the Concept Library API"
-)
-
-# 3. Attach production middleware (Proxy headers for SSL/Host resolution & CORS)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 4. Platform health check endpoint
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "phenotypelibrary-mcp",
-        "sse_endpoint": "/mcp/sse"
-    }
-
-# 5. Mount the FastMCP SSE application under /mcp namespace
-app.mount("/mcp", mcp.sse_app())
-
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="PhenotypeLibrary MCP Server")
-    parser.add_argument(
-        "--transport",
-        choices=["stdio", "sse"],
-        default="stdio",
-        help="Transport protocol to use (default: stdio)"
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> Response:
+    """Health check endpoint for hosting platforms (Render)."""
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "service": "phenotypelibrary-mcp",
+            "mcp_endpoint": "/mcp",
+        }
     )
-    parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Port to bind to (default: 8000)"
-    )
-    return parser.parse_args()
+
+
+# =============================================================================
+# Main entry point — streamable HTTP transport
+# =============================================================================
+
+def main() -> None:
+    """Serve the streamable-HTTP MCP transport at /mcp, binding env HOST/PORT."""
+    port = int(os.environ.get("PORT", "8000"))
+    host = os.environ.get("HOST", "0.0.0.0")
+    # Set before run() — settings are consumed when the server binds and
+    # run_streamable_http_async reads host/port from mcp.settings at serve time.
+    mcp.settings.host = host
+    mcp.settings.port = port
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    
-    if args.transport == "stdio":
-        mcp.run()
-    else:
-        # For SSE transport, run with uvicorn
-        uvicorn.run(app, host=args.host, port=args.port, timeout_keep_alive=300)
+    main()
