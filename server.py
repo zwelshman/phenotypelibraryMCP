@@ -78,9 +78,29 @@ class PhenotypeLibraryClient:
 
     @staticmethod
     def normalize_concept_id(concept_id: str) -> str:
-        """Return the concept ID with a single 'C' prefix ('689' or 'c689' -> 'C689')."""
+        """Return the concept ID in canonical 'C###' form ('714', 'c714', 'C714' -> 'C714')."""
         cid = concept_id.strip()
-        return cid if cid.upper().startswith("C") else f"C{cid}"
+        if cid.upper().startswith("C"):
+            return f"C{cid[1:]}"
+        return f"C{cid}"
+
+    @staticmethod
+    def normalize_phenotype_id(phenotype_id: str) -> str:
+        """Return the phenotype ID in canonical 'PH###' form ('215', 'ph215', 'PH215' -> 'PH215')."""
+        pid = phenotype_id.strip().upper()
+        return pid if pid.startswith("PH") or pid.startswith("CPH") and False else (
+            pid[1:] if pid.startswith("C") and pid[1:3] == "PH" else f"PH{pid}"
+        )
+
+    @staticmethod
+    def _match_id(raw: str, prefix: str) -> str:
+        """Normalize an identifier to '{prefix}<digits>' from any case/prefix variant.
+
+        Handles bare digits ('215'), lowercase ('ph215'), double-prefixed ('CPH215'
+        → 'PH215'), and the exact form ('PH215').
+        """
+        digits = re.sub(r"[^0-9]", "", raw) or re.sub(r"[^0-9]", "", prefix)
+        return f"{prefix}{digits}" if digits else raw.strip().upper()
 
 
 client = PhenotypeLibraryClient(BASE_URL, TIMEOUT, USERNAME, PASSWORD)
